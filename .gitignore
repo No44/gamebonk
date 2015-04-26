@@ -4,6 +4,17 @@
 *.o
 *.obj
 
+# VS stuff
+*.pdb
+*.suo
+*.log
+*.tlog
+*.lastbuildstate
+*.idb
+*.pdb
+*.ilk
+*.sdf
+
 # Precompiled Headers
 *.gch
 *.pch

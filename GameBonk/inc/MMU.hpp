@@ -8,6 +8,8 @@
 namespace GBonk
 {
 
+    // Memory Management Unit
+    // It's a Unit that manages memory
     class MMU
     {
     public:

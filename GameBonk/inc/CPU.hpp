@@ -6,6 +6,17 @@
 #include "video/VideoSystem.hpp"
 #include "MMU.hpp"
 
+
+#define REGPAIR(FIRST, SECOND) union { \
+       struct {               \
+         uint8_t FIRST;       \
+         uint8_t SECOND;      \
+       };                     \
+       uint16_t  pair;        \
+                              \
+} FIRST##SECOND               \
+
+
 namespace GBonk
 {
     // clock speed:4.2 MHZ
@@ -21,19 +32,12 @@ namespace GBonk
 
         void load(Cartridge&);
 
-        union RegPair{
-            struct {
-                uint8_t first;
-                uint8_t second;
-            };
-            uint16_t pair;
-        };
         struct Registers
         {
-            RegPair AF;
-            RegPair BC;
-            RegPair DE;
-            RegPair HL;
+            REGPAIR(A,F);
+            REGPAIR(B,C);
+            REGPAIR(D,E);
+            REGPAIR(H,L);
             uint16_t sp;
             uint16_t pc;
         };
@@ -53,6 +57,21 @@ namespace GBonk
 
     private:
         void launchSequence_();
+
+        static constexpr unsigned int F_ZEROFLAG = 1 << 7;
+        static constexpr unsigned int F_SUBFLAG = 1 << 6;
+        static constexpr unsigned int F_HCARRY = 1 << 5;
+        static constexpr unsigned int F_CARRY = 1 << 4;
+        static constexpr unsigned int F_VALUEPART = F_CARRY - 1;
+
+        // returns instruction's length.
+        // should be added to PC to get the next instruction.
+        struct OpFormat {
+          unsigned int cycles;
+          unsigned int bytes;
+        };
+
+        friend OpFormat runCurrentOp(CPU&);
 
         Cartridge* game_;
         MMU mmu_;

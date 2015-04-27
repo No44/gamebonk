@@ -17,6 +17,13 @@ namespace GBonk
         game_ = &game;
     }
 
+
+    static unsigned int runOp()
+    {
+    }
+
+    static int runCurrentOp(CPU&);
+
     void CPU::run()
     {
         launchSequence_();
@@ -40,8 +47,6 @@ namespace GBonk
             }
         }
     }
-
-    
 
     void CPU::write(unsigned int value, uint32_t addr)
     {
@@ -110,6 +115,37 @@ namespace GBonk
         mmu_.rawWrite(0x00, 0xFF4A);
         mmu_.rawWrite(0x00, 0xFF4B);
         mmu_.rawWrite(0x00, 0xFFFF);
+    }
+
+
+#define _8BLD(DST, SRC, LEN, CYCLES) { DST = SRC & 0xFF; return {CYCLES, LEN}; }
+
+
+    static CPU::OpFormat runCurrentOp(CPU& cpu)
+    {
+      CPU::Registers& r = cpu.registers_;
+      MMU& mmu = cpu.mmu_;
+
+      unsigned int op = mmu.read(cpu.registers_.pc);
+      switch (op)
+      {
+      // 8-bit loads
+      case 0x06: _8BLD(r.BC.B, mmu.read(r.pc + 1), 2, 8);
+      case 0x0E: _8BLD(r.BC.C, mmu.read(r.pc + 1), 2, 8);
+      case 0x16: _8BLD(r.DE.D, mmu.read(r.pc + 1), 2, 8);
+      case 0x1E: _8BLD(r.DE.E, mmu.read(r.pc + 1), 2, 8);
+      case 0x26: _8BLD(r.HL.H, mmu.read(r.pc + 1), 2, 8);
+      case 0x2E: _8BLD(r.HL.L, mmu.read(r.pc + 1), 2, 8);
+
+      case 0x7F:
+      case 0x78:
+      case 0x79:
+      case 0x7A:
+      case 0x7B:
+      default:
+        std::cerr << "Undefined opcode " << op << std::endl;
+        return {0,1};
+      }
     }
 
 }

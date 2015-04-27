@@ -123,7 +123,8 @@
     <ClCompile Include="src\CPU.cpp" />
     <ClCompile Include="src\MemoryBankController1.cpp" />
     <ClCompile Include="src\MMU.cpp" />
-    <ClCompile Include="src\VideoSystem.cpp" />
+    <ClCompile Include="src\video\TileTable.cpp" />
+    <ClCompile Include="src\video\VideoSystem.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="inc\AMemoryBankController.hpp" />

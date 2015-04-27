@@ -31,6 +31,7 @@ namespace GBonk
         void rawWrite(unsigned int value, uint32_t addr);
         void write(unsigned int value, uint32_t addr);
         unsigned int read(uint32_t addr);
+        unsigned int readw(uint32_t addr);
 
         uint8_t* memory() { return systemMem_; }
 

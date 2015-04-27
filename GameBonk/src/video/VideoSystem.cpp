@@ -70,7 +70,7 @@ namespace GBonk
                 for (int i = 0; i < tiles && wnpx < width; ++i)
                 {
                     uint32_t wnpy = this->wndposy_;
-                    for (j = 0; j < tiles && wnpy < height; ++j)
+                    for (int j = 0; j < tiles && wnpy < height; ++j)
                     {
                         unsigned int tile = windowTable_.tileId(wnpx, wnpy);
                         // tilePattern = tilePatternTable_.get(tile);

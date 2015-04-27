@@ -45,6 +45,12 @@ namespace GBonk
             uint64_t m;
             uint64_t t;
         };
+        // returns instruction's length.
+        // should be added to PC to get the next instruction.
+        struct OpFormat {
+            unsigned int cycles;
+            unsigned int bytes;
+        };
 
         static const unsigned int InterruptPeriod = 0;
 
@@ -54,22 +60,18 @@ namespace GBonk
 
         void run();
         void write(unsigned int value, uint32_t addr);
+        void writew(unsigned int value, uint32_t addr);
+        unsigned int read(uint32_t addr);
+        unsigned int readw(uint32_t addr);
 
     private:
         void launchSequence_();
 
-        static constexpr unsigned int F_ZEROFLAG = 1 << 7;
-        static constexpr unsigned int F_SUBFLAG = 1 << 6;
-        static constexpr unsigned int F_HCARRY = 1 << 5;
-        static constexpr unsigned int F_CARRY = 1 << 4;
-        static constexpr unsigned int F_VALUEPART = F_CARRY - 1;
-
-        // returns instruction's length.
-        // should be added to PC to get the next instruction.
-        struct OpFormat {
-          unsigned int cycles;
-          unsigned int bytes;
-        };
+        static const unsigned int F_ZEROFLAG = 1 << 7;
+        static const unsigned int F_SUBFLAG = 1 << 6;
+        static const unsigned int F_HCARRY = 1 << 5;
+        static const unsigned int F_CARRY = 1 << 4;
+        static const unsigned int F_VALUEPART = F_CARRY - 1;
 
         friend OpFormat runCurrentOp(CPU&);
 

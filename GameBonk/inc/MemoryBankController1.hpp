@@ -17,6 +17,7 @@ namespace GBonk
 
         void write(unsigned int val, uint32_t addr) override;
         unsigned int read(uint32_t addr) const override;
+        unsigned int readw(uint32_t addr) const override;
 
     private:
         bool modeROM_;

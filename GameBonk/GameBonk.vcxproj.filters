@@ -33,7 +33,10 @@
     <ClCompile Include="src\AMemoryBankController.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\VideoSystem.cpp">
+    <ClCompile Include="src\video\VideoSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\video\TileTable.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -1,4 +1,5 @@
-
+#include <iostream>
+#include <iomanip>
 
 #include "MMU.hpp"
 #include "CPU.hpp"
@@ -22,8 +23,6 @@ namespace GBonk
     {
     }
 
-    static int runCurrentOp(CPU&);
-
     void CPU::run()
     {
         launchSequence_();
@@ -46,6 +45,23 @@ namespace GBonk
                 // break;
             }
         }
+    }
+
+    unsigned int CPU::read(uint32_t addr)
+    {
+        // todo: ports ?
+        return mmu_.read(addr);
+    }
+
+    unsigned int CPU::readw(uint32_t addr)
+    {
+        // todo: ports ?
+        return mmu_.readw(addr);
+    }
+
+    void CPU::writew(unsigned int value, uint32_t addr)
+    {
+
     }
 
     void CPU::write(unsigned int value, uint32_t addr)
@@ -76,9 +92,9 @@ namespace GBonk
 
     void CPU::launchSequence_()
     {
-        registers_.pc = static_cast<uint16_t>(game_->startAddress());
+        registers_.pc = 0x100;
         registers_.AF.pair = 1;
-        registers_.AF.second = 0xB0;
+        registers_.AF.A = 0xB0;
         registers_.BC.pair = 0x13;
         registers_.DE.pair = 0xD8;
         registers_.HL.pair = 0x14D;
@@ -117,9 +133,11 @@ namespace GBonk
         mmu_.rawWrite(0x00, 0xFFFF);
     }
 
-
-#define _8BLD(DST, SRC, LEN, CYCLES) { DST = SRC & 0xFF; return {CYCLES, LEN}; }
-
+// LD
+#define _LD(DST, SRC, LEN, CYCLES) { DST = SRC; return {CYCLES, LEN}; }
+// LD to memory location
+#define _8BLDMEM(DST, SRC, LEN, CYCLES) { cpu.write(SRC, DST); return {CYCLES, LEN}; }
+#define _16BLDMEM(DST, SRC, LEN, CYCLES) { cpu.writew(SRC, DST); return {CYCLES, LEN}; }
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
     {
@@ -127,23 +145,103 @@ namespace GBonk
       MMU& mmu = cpu.mmu_;
 
       unsigned int op = mmu.read(cpu.registers_.pc);
+      //case 0x:
       switch (op)
       {
       // 8-bit loads
-      case 0x06: _8BLD(r.BC.B, mmu.read(r.pc + 1), 2, 8);
-      case 0x0E: _8BLD(r.BC.C, mmu.read(r.pc + 1), 2, 8);
-      case 0x16: _8BLD(r.DE.D, mmu.read(r.pc + 1), 2, 8);
-      case 0x1E: _8BLD(r.DE.E, mmu.read(r.pc + 1), 2, 8);
-      case 0x26: _8BLD(r.HL.H, mmu.read(r.pc + 1), 2, 8);
-      case 0x2E: _8BLD(r.HL.L, mmu.read(r.pc + 1), 2, 8);
-
-      case 0x7F:
-      case 0x78:
-      case 0x79:
-      case 0x7A:
-      case 0x7B:
+      case 0x06: _LD(r.BC.B, cpu.read(r.pc + 1), 2, 8);
+      case 0x0E: _LD(r.BC.C, cpu.read(r.pc + 1), 2, 8);
+      case 0x16: _LD(r.DE.D, cpu.read(r.pc + 1), 2, 8);
+      case 0x1E: _LD(r.DE.E, cpu.read(r.pc + 1), 2, 8);
+      case 0x26: _LD(r.HL.H, cpu.read(r.pc + 1), 2, 8);
+      case 0x2E: _LD(r.HL.L, cpu.read(r.pc + 1), 2, 8);
+      case 0x7F: _LD(r.AF.A, r.AF.A, 1, 4);
+      case 0x78: _LD(r.AF.A, r.BC.B, 1, 4);
+      case 0x79: _LD(r.AF.A, r.BC.C, 1, 4);
+      case 0x7A: _LD(r.AF.A, r.DE.D, 1, 4);
+      case 0x7B: _LD(r.AF.A, r.DE.E, 1, 4);
+      case 0x7C: _LD(r.AF.A, r.HL.H, 1, 4);
+      case 0x7D: _LD(r.AF.A, r.HL.L, 1, 4);
+      case 0x7E: _LD(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0x40: _LD(r.BC.B, r.BC.B, 1, 4);
+      case 0x41: _LD(r.BC.B, r.BC.C, 1, 4);
+      case 0x42: _LD(r.BC.B, r.DE.D, 1, 4);
+      case 0x43: _LD(r.BC.B, r.DE.E, 1, 4);
+      case 0x44: _LD(r.BC.B, r.HL.H, 1, 4);
+      case 0x45: _LD(r.BC.B, r.HL.L, 1, 4);
+      case 0x46: _LD(r.BC.B, cpu.read(r.HL.pair), 1, 8);
+      case 0x48: _LD(r.BC.C, r.BC.B, 1, 4);
+      case 0x49: _LD(r.BC.C, r.BC.C, 1, 4);
+      case 0x4A: _LD(r.BC.C, r.DE.D, 1, 4);
+      case 0x4B: _LD(r.BC.C, r.DE.E, 1, 4);
+      case 0x4C: _LD(r.BC.C, r.HL.H, 1, 4);
+      case 0x4D: _LD(r.BC.C, r.HL.L, 1, 4);
+      case 0x4E: _LD(r.BC.C, cpu.read(r.HL.pair), 1, 8);
+      case 0x50: _LD(r.DE.D, r.BC.B, 1, 4);
+      case 0x51: _LD(r.DE.D, r.BC.C, 1, 4);
+      case 0x52: _LD(r.DE.D, r.DE.D, 1, 4);
+      case 0x53: _LD(r.DE.D, r.DE.E, 1, 4);
+      case 0x54: _LD(r.DE.D, r.HL.H, 1, 4);
+      case 0x55: _LD(r.DE.D, r.HL.L, 1, 4);
+      case 0x56: _LD(r.DE.D, cpu.read(r.HL.pair), 1, 8);
+      case 0x58: _LD(r.DE.E, r.BC.B, 1, 4);
+      case 0x59: _LD(r.DE.E, r.BC.C, 1, 4);
+      case 0x5A: _LD(r.DE.E, r.DE.D, 1, 4);
+      case 0x5B: _LD(r.DE.E, r.DE.E, 1, 4);
+      case 0x5C: _LD(r.DE.E, r.HL.H, 1, 4);
+      case 0x5D: _LD(r.DE.E, r.HL.L, 1, 4);
+      case 0x5E: _LD(r.DE.E, cpu.read(r.HL.pair), 1, 8);
+      case 0x60: _LD(r.HL.H, r.BC.B, 1, 4);
+      case 0x61: _LD(r.HL.H, r.BC.C, 1, 4);
+      case 0x62: _LD(r.HL.H, r.DE.D, 1, 4);
+      case 0x63: _LD(r.HL.H, r.DE.E, 1, 4);
+      case 0x64: _LD(r.HL.H, r.HL.H, 1, 4);
+      case 0x65: _LD(r.HL.H, r.HL.L, 1, 4);
+      case 0x66: _LD(r.HL.H, cpu.read(r.HL.pair), 1, 8);
+      case 0x68: _LD(r.HL.L, r.BC.B, 1, 4);
+      case 0x69: _LD(r.HL.L, r.BC.C, 1, 4);
+      case 0x6A: _LD(r.HL.L, r.DE.D, 1, 4);
+      case 0x6B: _LD(r.HL.L, r.DE.E, 1, 4);
+      case 0x6C: _LD(r.HL.L, r.HL.H, 1, 4);
+      case 0x6D: _LD(r.HL.L, r.HL.L, 1, 4);
+      case 0x6E: _LD(r.HL.L, cpu.read(r.HL.pair), 1, 8);
+      case 0x70: _8BLDMEM((r.HL.pair), r.BC.B, 1, 8);
+      case 0x71: _8BLDMEM((r.HL.pair), r.BC.C, 1, 8);
+      case 0x72: _8BLDMEM((r.HL.pair), r.DE.D, 1, 8);
+      case 0x73: _8BLDMEM((r.HL.pair), r.DE.E, 1, 8);
+      case 0x74: _8BLDMEM((r.HL.pair), r.HL.H, 1, 8);
+      case 0x75: _8BLDMEM((r.HL.pair), r.HL.L, 1, 8);
+      case 0x36: _8BLDMEM((r.HL.pair), cpu.read(r.pc + 1), 2, 12);
+      case 0x0A: _LD(r.AF.A, cpu.read(r.BC.pair), 1, 8);
+      case 0x1A: _LD(r.AF.A, cpu.read(r.DE.pair), 1, 8);
+      case 0xFA: _LD(r.AF.A, cpu.read(cpu.readw(r.pc + 1)), 3, 16); // !! conflict ?
+      case 0x3E: _LD(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0x47: _LD(r.BC.B, r.AF.A, 1, 4);
+      case 0x4F: _LD(r.BC.C, r.AF.A, 1, 4);
+      case 0x57: _LD(r.DE.D, r.AF.A, 1, 4);
+      case 0x5F: _LD(r.DE.E, r.AF.A, 1, 4);
+      case 0x67: _LD(r.HL.H, r.AF.A, 1, 4);
+      case 0x6F: _LD(r.HL.L, r.AF.A, 1, 4);
+      case 0x02: _8BLDMEM((r.BC.pair), r.AF.A, 1, 8);
+      case 0x12: _8BLDMEM((r.DE.pair), r.AF.A, 1, 8);
+      case 0x77: _8BLDMEM((r.HL.pair), r.AF.A, 1, 8);
+      case 0xEA: _8BLDMEM((cpu.readw(r.pc+1)), r.AF.A, 3, 16);
+      case 0xF2: _LD(r.AF.A, cpu.read(0xFF00 + r.BC.C), 1, 8);
+      case 0xE2: _8BLDMEM((0xFF00 + r.BC.C), r.AF.A, 1, 8);
+      case 0x3A: _LD(r.AF.A, cpu.read(r.HL.pair--), 1, 8);
+      case 0x32: _8BLDMEM(r.HL.pair--, r.AF.A, 1, 8);
+      case 0x2A: _LD(r.AF.A, cpu.read(r.HL.pair++), 1, 8);
+      case 0x22: _8BLDMEM(r.HL.pair++, r.AF.A, 1, 8);
+      case 0xE0: _8BLDMEM((0xFF00 + cpu.read(r.pc + 1)), r.AF.A, 2, 12);
+      case 0xF0: _LD(r.AF.A, cpu.read(0xFF00 + cpu.read(r.pc + 1)), 2, 12);
+      case 0x01: _LD(r.BC.pair, cpu.readw(r.pc + 1), 3, 12);
+      case 0x11: _LD(r.DE.pair, cpu.readw(r.pc + 1), 3, 12);
+      case 0x21: _LD(r.HL.pair, cpu.readw(r.pc + 1), 3, 12);
+      case 0x31: _LD(r.sp, cpu.readw(r.pc + 1), 3, 12);
+      case 0xF9: _LD(r.sp, r.HL.pair, 1, 8);
+      case 0xF8: _LD(r.HL.pair, r.sp + (int)cpu.read(r.pc + 1), 2, 12);
       default:
-        std::cerr << "Undefined opcode " << op << std::endl;
+        std::cerr << "Undefined opcode " << std::hex << op << std::endl;
         return {0,1};
       }
     }

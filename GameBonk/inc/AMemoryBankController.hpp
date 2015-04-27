@@ -49,6 +49,7 @@ namespace GBonk
 
         virtual void write(unsigned int val, uint32_t addr) = 0;
         virtual unsigned int read(uint32_t addr) const = 0;
+        virtual unsigned int readw(uint32_t addr) const = 0;
 
         static std::string typeToString(Type);
         static AMemoryBankController* makeMBC(const Cartridge&);

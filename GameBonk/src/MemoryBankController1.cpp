@@ -36,7 +36,35 @@ namespace GBonk
         case 0xB000:
             byte = externalRAM_[ramOffset_ + (addr & 0x1FFF)];
             break;
-        };
+        }
+        return byte;
+    }
+
+    unsigned int MBC1::readw(uint32_t addr) const
+    {
+        unsigned int byte = 0;
+
+        switch (addr & 0xF000)
+        {
+            /*
+            case 0x0000:
+            case 0x1000:
+            case 0x2000:
+            case 0x3000:
+            byte = cartridgeROM_[addr];
+            break;
+            */
+        case 0x4000:
+        case 0x5000:
+        case 0x6000:
+        case 0x7000:
+            byte = cartridgeROM_[romOffset_ + (addr & 0x3FFF)];
+            break;
+        case 0xA000:
+        case 0xB000:
+            byte = externalRAM_[ramOffset_ + (addr & 0x1FFF)];
+            break;
+        }
         return byte;
     }
 

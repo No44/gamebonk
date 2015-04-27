@@ -63,7 +63,25 @@ namespace GBonk
             return mbc_->read(addr);
         default:
             return systemMem_[addr];
-        };
+        }
+    }
+
+    unsigned int MMU::readw(uint32_t addr)
+    {
+        switch (addr & 0xF000)
+        {
+            // Reads to switchable ROM/RAM banks need to consider
+            // associated offsets.
+        case 0x4000:
+        case 0x5000:
+        case 0x6000:
+        case 0x7000:
+        case 0xA000:
+        case 0xB000:
+            return mbc_->readw(addr);
+        default:
+            return systemMem_[addr] | (systemMem_[addr + 1] << 8);
+        }
     }
 
     void MMU::setMBC(AMBC* mbc)

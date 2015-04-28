@@ -67,11 +67,13 @@ namespace GBonk
     private:
         void launchSequence_();
 
-        static const unsigned int F_ZEROFLAG = 1 << 7;
-        static const unsigned int F_SUBFLAG = 1 << 6;
-        static const unsigned int F_HCARRY = 1 << 5;
-        static const unsigned int F_CARRY = 1 << 4;
-        static const unsigned int F_VALUEPART = F_CARRY - 1;
+        enum class Flags
+        {
+          Z = 1 << 7, // zero
+          N = 1 << 6, // subtract
+          H = 1 << 5, // half-carry
+          C = 1 << 4, // carry
+        };
 
         friend OpFormat runCurrentOp(CPU&);
 

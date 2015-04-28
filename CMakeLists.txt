@@ -19,6 +19,6 @@ add_executable(GameBonk GameBonk/inc/MemoryBankController1.hpp
   GameBonk/src/MemoryBankController1.cpp
   GameBonk/src/MMU.cpp
   GameBonk/src/Cartridge.cpp
-  GameBonk/src/VideoSystem.cpp
+  GameBonk/src/video/VideoSystem.cpp
   GameBonk/src/AMemoryBankController.cpp
   GameBonk/main.cpp)

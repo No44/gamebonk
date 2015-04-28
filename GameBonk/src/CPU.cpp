@@ -138,6 +138,13 @@ namespace GBonk
 // LD to memory location
 #define _8BLDMEM(DST, SRC, LEN, CYCLES) { cpu.write(SRC, DST); return {CYCLES, LEN}; }
 #define _16BLDMEM(DST, SRC, LEN, CYCLES) { cpu.writew(SRC, DST); return {CYCLES, LEN}; }
+#define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN};}
+
+#define FSET(FLAG) { r.AF.F |= CPU::Flags::FLAG; }
+#define FRESET(FLAG) { r.AF.F &= ~CPU::Flags::FLAG; }
+#define FASSIGN(FLAG, V) { r.AF.F ^= (- (!!V) ^ r.AF.F) & CPU::Flags::FLAG; }
+#define HCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
+#define CARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
     {
@@ -239,10 +246,24 @@ namespace GBonk
       case 0x21: _LD(r.HL.pair, cpu.readw(r.pc + 1), 3, 12);
       case 0x31: _LD(r.sp, cpu.readw(r.pc + 1), 3, 12);
       case 0xF9: _LD(r.sp, r.HL.pair, 1, 8);
-      case 0xF8: _LD(r.HL.pair, r.sp + (int)cpu.read(r.pc + 1), 2, 12);
+      case 0xF8: {
+        FRESET(Z);
+        FRESET(N);
+        unsigned int op = r.sp;
+        int rh = (int)cpu.read(r.pc + 1);
+        FASSIGN(H, HCARRY(op, rh));
+        FASSIGN(C, CARRY(op, rh));
+        _LD(r.HL.pair, op + rh, 2, 12);
+      }
+      case 0x08: _8BLDMEM((cpu.readw(r.pc + 1)), r.sp, 3, 20);
+      // conflit sur les 4 en dessous: verifier
+      case 0xF5: _PUSH16(r.AF.pair, 1, 16);
+      case 0xC5: _PUSH16(r.BC.pair, 1, 16);
+      case 0xD5: _PUSH16(r.DE.pair, 1, 16);
+      case 0xE5: _PUSH16(r.HL.pair, 1, 16);
       default:
-        std::cerr << "Undefined opcode " << std::hex << op << std::endl;
-        return {0,1};
+        std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
+        return {4,1};
       }
     }
 

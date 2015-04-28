@@ -48,6 +48,44 @@ namespace GBonk
         };
     }
 
+    void MMU::writew(unsigned int value, uint32_t addr)
+    {
+        switch (addr & 0xF000)
+        {
+            // Writes to ROM area access MBC registers.
+        case 0x0000:
+        case 0x1000:
+        case 0x2000:
+        case 0x3000:
+        case 0x4000:
+        case 0x5000:
+        case 0x6000:
+        case 0x7000:
+            // Writes to switchable RAM bank need to take RAM offset
+            // into account.
+        case 0xA000:
+        case 0xB000:
+            
+            mbc_->write(value, addr);
+            return;
+        case 0xC000:
+        case 0xD000:
+            // need to echo
+            systemMem_[addr] = value & 0xFF;
+            systemMem_[addr + 1] = value & 0xFF00 >> 8;
+            if (addr < 0xDDFF)
+            {
+                systemMem_[addr] = value & 0xFF;
+                systemMem_[addr + 1] = value & 0xFF00 >> 8;
+            }
+            return;
+        default:
+            // todo: a garder ?
+            systemMem_[addr] = value;
+            return;
+        }
+    }
+
     unsigned int MMU::read(uint32_t addr)
     {
         switch (addr & 0xF000)

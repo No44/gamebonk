@@ -61,7 +61,28 @@ namespace GBonk
 
     void CPU::writew(unsigned int value, uint32_t addr)
     {
-
+        switch (addr & 0xF000)
+        {
+        case 0xF000:
+            // IO Ports
+            switch (addr & 0xF00)
+            {
+            case 0xF00:
+                switch (addr & 0xFF)
+                {
+                case 0x00:
+                    // Joypad
+                    break;
+                case 0x40:
+                    video_.setLCDC(value);
+                    break;
+                };
+            default:
+                break;
+            };
+            break;
+        }
+        mmu_.writew(value, addr);
     }
 
     void CPU::write(unsigned int value, uint32_t addr)
@@ -133,18 +154,29 @@ namespace GBonk
         mmu_.rawWrite(0x00, 0xFFFF);
     }
 
+#define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define FASSIGN(FLAG, V) { r.AF.F ^= (- (!!V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define HCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
+#define CARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
+#define FCARRIES(X, Y) { FASSIGN(H, HCARRY(X, Y)); FASSIGN(C, CARRY(X, Y)); }
+#define HBORROW(IN, RES) (((IN) & 0xF0) != ((RES) & 0xF0))
+#define BORROW(IN, RES) ((RES) >= IN) 
+#define FBORROWS(IN, RES) { FASSIGN(H, !HBORROW(IN, RES)); FASSIGN(C, !BORROW(IN, RES)); }
+
 // LD
 #define _LD(DST, SRC, LEN, CYCLES) { DST = SRC; return {CYCLES, LEN}; }
 // LD to memory location
 #define _8BLDMEM(DST, SRC, LEN, CYCLES) { cpu.write(SRC, DST); return {CYCLES, LEN}; }
 #define _16BLDMEM(DST, SRC, LEN, CYCLES) { cpu.writew(SRC, DST); return {CYCLES, LEN}; }
-#define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN};}
-
-#define FSET(FLAG) { r.AF.F |= CPU::Flags::FLAG; }
-#define FRESET(FLAG) { r.AF.F &= ~CPU::Flags::FLAG; }
-#define FASSIGN(FLAG, V) { r.AF.F ^= (- (!!V) ^ r.AF.F) & CPU::Flags::FLAG; }
-#define HCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
-#define CARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
+#define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN}; }
+#define _POP16(DST, LEN, CYCLES) { DST = cpu.readw(r.sp); r.sp += 2; return {CYCLES, LEN}; }
+#define _ADD8(DST, SRC, LEN, CYCLES) { FCARRIES(DST, SRC); DST += SRC; FASSIGN(Z, !DST); FRESET(N); }
+#define _SUB8(DST, SRC, LEN, CYCLES) { int res = DST - SRC; FBORROWS(DST, res); DST = res; FASSIGN(Z, !res); FSET(N); }
+#define _AND(DST, SRC, LEN, CYCLES) {DST &= SRC; FASSIGN(Z, !DST); FRESET(N); FSET(H); FRESET(C); }
+#define _OR(DST, SRC, LEN, CYCLES) {DST |= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); }
+#define _XOR(DST, SRC, LEN, CYCLES) {DST ^= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); }
+#define _CP();
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
     {
@@ -261,6 +293,73 @@ namespace GBonk
       case 0xC5: _PUSH16(r.BC.pair, 1, 16);
       case 0xD5: _PUSH16(r.DE.pair, 1, 16);
       case 0xE5: _PUSH16(r.HL.pair, 1, 16);
+      case 0xF1: _POP16(r.AF.pair, 1, 12);
+      case 0xC1: _POP16(r.BC.pair, 1, 12);
+      case 0xD1: _POP16(r.DE.pair, 1, 12);
+      case 0xE1: _POP16(r.HL.pair, 1, 12);
+      case 0x87: _ADD8(r.AF.A, r.AF.A, 1, 4);
+      case 0x80: _ADD8(r.AF.A, r.BC.B, 1, 4);
+      case 0x81: _ADD8(r.AF.A, r.BC.C, 1, 4);
+      case 0x82: _ADD8(r.AF.A, r.DE.D, 1, 4);
+      case 0x83: _ADD8(r.AF.A, r.DE.E, 1, 4);
+      case 0x84: _ADD8(r.AF.A, r.HL.H, 1, 4);
+      case 0x85: _ADD8(r.AF.A, r.HL.L, 1, 4);
+      case 0x86: _ADD8(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xC6: _ADD8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0x8F: _ADD8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x88: _ADD8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x89: _ADD8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x8A: _ADD8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x8B: _ADD8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x8C: _ADD8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x8D: _ADD8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x8E: _ADD8(r.AF.A, cpu.read(r.HL.pair) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
+      case 0xCE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
+      case 0x97: _SUB8(r.AF.A, r.AF.A, 1, 4);
+      case 0x90: _SUB8(r.AF.A, r.BC.B, 1, 4);
+      case 0x91: _SUB8(r.AF.A, r.BC.C, 1, 4);
+      case 0x92: _SUB8(r.AF.A, r.DE.D, 1, 4);
+      case 0x93: _SUB8(r.AF.A, r.DE.E, 1, 4);
+      case 0x94: _SUB8(r.AF.A, r.HL.H, 1, 4);
+      case 0x95: _SUB8(r.AF.A, r.HL.L, 1, 4);
+      case 0x96: _SUB8(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xD6: _SUB8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0x9F: _SUB8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x98: _SUB8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x99: _SUB8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x9A: _SUB8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x9B: _SUB8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x9C: _SUB8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x9D: _SUB8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
+      case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL.pair) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
+      case 0xA7: _AND(r.AF.A, r.AF.A, 1, 4);
+      case 0xA0: _AND(r.AF.A, r.BC.B, 1, 4);
+      case 0xA1: _AND(r.AF.A, r.BC.C, 1, 4);
+      case 0xA2: _AND(r.AF.A, r.DE.D, 1, 4);
+      case 0xA3: _AND(r.AF.A, r.DE.E, 1, 4);
+      case 0xA4: _AND(r.AF.A, r.HL.H, 1, 4);
+      case 0xA5: _AND(r.AF.A, r.HL.L, 1, 4);
+      case 0xA6: _AND(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xE6: _AND(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0xB7: _OR(r.AF.A, r.AF.A, 1, 4);
+      case 0xB0: _OR(r.AF.A, r.BC.B, 1, 4);
+      case 0xB1: _OR(r.AF.A, r.BC.C, 1, 4);
+      case 0xB2: _OR(r.AF.A, r.DE.D, 1, 4);
+      case 0xB3: _OR(r.AF.A, r.DE.E, 1, 4);
+      case 0xB4: _OR(r.AF.A, r.HL.H, 1, 4);
+      case 0xB5: _OR(r.AF.A, r.HL.L, 1, 4);
+      case 0xB6: _OR(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xF6: _OR(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0xAF: _XOR(r.AF.A, r.AF.A, 1, 4);
+      case 0xA8: _XOR(r.AF.A, r.BC.B, 1, 4);
+      case 0xA9: _XOR(r.AF.A, r.BC.C, 1, 4);
+      case 0xAA: _XOR(r.AF.A, r.DE.D, 1, 4);
+      case 0xAB: _XOR(r.AF.A, r.DE.E, 1, 4);
+      case 0xAC: _XOR(r.AF.A, r.HL.H, 1, 4);
+      case 0xAD: _XOR(r.AF.A, r.HL.L, 1, 4);
+      case 0xAE: _XOR(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xEE: _XOR(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+
       default:
         std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
         return {4,1};

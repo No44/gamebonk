@@ -65,7 +65,6 @@ namespace GBonk
             // into account.
         case 0xA000:
         case 0xB000:
-            
             mbc_->write(value, addr);
             return;
         case 0xC000:

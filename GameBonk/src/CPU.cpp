@@ -161,7 +161,7 @@ namespace GBonk
 #define CARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
 #define FCARRIES(X, Y) { FASSIGN(H, HCARRY(X, Y)); FASSIGN(C, CARRY(X, Y)); }
 #define HBORROW(IN, RES) (((IN) & 0xF0) != ((RES) & 0xF0))
-#define BORROW(IN, RES) ((RES) >= IN) 
+#define BORROW(IN, RES) ((RES) >= (IN))
 #define FBORROWS(IN, RES) { FASSIGN(H, !HBORROW(IN, RES)); FASSIGN(C, !BORROW(IN, RES)); }
 
 // LD

@@ -156,10 +156,13 @@ namespace GBonk
 
 #define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define FASSIGN(FLAG, V) { r.AF.F ^= (- (!!V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define HCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
-#define CARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
-#define FCARRIES(X, Y) { FASSIGN(H, HCARRY(X, Y)); FASSIGN(C, CARRY(X, Y)); }
+#define FASSIGN(FLAG, V) { r.AF.F ^= (- !!(V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define _8BHCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
+#define _8BCARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
+#define F8BCARRIES(X, Y) { FASSIGN(H, _8BHCARRY(X, Y)); FASSIGN(C, _8BCARRY(X, Y)); }
+#define _16BHCARRY(X, Y) _8BHCARRY((X) >> 8, (Y) >> 8)
+#define _16BCARRY(X, Y) _8BCARRY((X) >> 8, (Y) >> 8)
+#define F16BCARRIES(X, Y) { FASSIGN(H, _16BHCARRY(X, Y)); FASSIGN(C, _16BCARRY(X, Y));}
 #define HBORROW(IN, RES) (((IN) & 0xF0) != ((RES) & 0xF0))
 #define BORROW(IN, RES) ((RES) >= (IN))
 #define FBORROWS(IN, RES) { FASSIGN(H, !HBORROW(IN, RES)); FASSIGN(C, !BORROW(IN, RES)); }
@@ -171,12 +174,39 @@ namespace GBonk
 #define _16BLDMEM(DST, SRC, LEN, CYCLES) { cpu.writew(SRC, DST); return {CYCLES, LEN}; }
 #define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN}; }
 #define _POP16(DST, LEN, CYCLES) { DST = cpu.readw(r.sp); r.sp += 2; return {CYCLES, LEN}; }
-#define _ADD8(DST, SRC, LEN, CYCLES) { FCARRIES(DST, SRC); DST += SRC; FASSIGN(Z, !DST); FRESET(N); }
-#define _SUB8(DST, SRC, LEN, CYCLES) { int res = DST - SRC; FBORROWS(DST, res); DST = res; FASSIGN(Z, !res); FSET(N); }
-#define _AND(DST, SRC, LEN, CYCLES) {DST &= SRC; FASSIGN(Z, !DST); FRESET(N); FSET(H); FRESET(C); }
-#define _OR(DST, SRC, LEN, CYCLES) {DST |= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); }
-#define _XOR(DST, SRC, LEN, CYCLES) {DST ^= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); }
-#define _CP();
+#define _ADD8(DST, SRC, LEN, CYCLES) { F8BCARRIES(DST, SRC); DST += SRC; FASSIGN(Z, !(DST)); FRESET(N); return {CYCLES, LEN}; }
+#define _ADD16(DST, SRC, LEN, CYCLES)  { F16BCARRIES(DST, SRC); DST += SRC; FRESET(N); return {CYCLES, LEN}; }
+#define _SUB8(DST, SRC, LEN, CYCLES) { int res = (DST) - (SRC); FBORROWS(DST, res); DST = res; FASSIGN(Z, !res); FSET(N); return {CYCLES, LEN}; }
+#define _AND(DST, SRC, LEN, CYCLES) {DST &= SRC; FASSIGN(Z, !DST); FRESET(N); FSET(H); FRESET(C); return {CYCLES, LEN}; }
+#define _OR(DST, SRC, LEN, CYCLES) {DST |= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
+#define _XOR(DST, SRC, LEN, CYCLES) {DST ^= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
+#define _CP(LH, RH, LEN, CYCLES) { int res = (LH) - (RH); FASSIGN(Z, !res); FSET(N); FASSIGN(H, !HBORROW(LH, res)); FASSIGN(C, LH < RH); return {CYCLES, LEN}; }
+#define _INC(DST, LEN, CYCLES) { int ini = DST; DST++; FASSIGN(Z, !DST); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN}; }
+#define _INCMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini + 1, DST); FASSIGN(Z, !(ini + 1)); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN};}
+#define _DEC(DST, LEN, CYCLES) _SUB8(DST, 1, LEN, CYCLES)
+#define _DECMEM(DST, LEN, CYCLES) int ini = cpu.read(DST); cpu.write(ini - 1, DST); FASSIGN(Z, !(ini - 1)); FSET(N); FASSIGN(H, !BORROW(ini, ini - 1)); return {CYCLES, LEN}; }
+#define _DECREG(DST, LEN, CYCLES) {DST++; return {CYCLES, LEN}; }
+#define _INCREG(DST, LEN, CYCLES) {DST--; return {CYCLES, LEN}; }
+#define _SWAP(DST, LEN, CYCLES) { DST = (((DST) & 0x0F) << 8) | (((DST) & 0xF0) >> 8); FASSIGN(Z, !(DST)); FRESET(N); FRESET(C); FRESET(H); return {CYCLES, LEN}; }
+#define _SWAPMEM(DST, LEN, CYCLES) { unsigned int val = cpu.read(DST); val = ((val & 0x0F) << 8) | ((val & 0xF0) >> 8); cpu.write(val, DST); FASSIGN(Z, !val); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
+
+    static inline CPU::OpFormat bitOp(CPU& cpu)
+    {
+      CPU::Registers& r = cpu.registers_;
+      unsigned int op = cpu.mmu_.read(r.pc + 1);
+
+      switch (op)
+      {
+      case 0x37: _SWAP(r.AF.A, 2, 8);
+      case 0x30: _SWAP(r.BC.B, 2, 8);
+      case 0x31: _SWAP(r.BC.C, 2, 8);
+      case 0x32: _SWAP(r.DE.D, 2, 8);
+      case 0x33: _SWAP(r.DE.E, 2, 8);
+      case 0x34: _SWAP(r.HL.H, 2, 8);
+      case 0x35: _SWAP(r.HL.L, 2, 8);
+      case 0x36: _SWAPMEM((r.HL.pair), 2, 16);
+      }
+    }
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
     {
@@ -359,7 +389,45 @@ namespace GBonk
       case 0xAD: _XOR(r.AF.A, r.HL.L, 1, 4);
       case 0xAE: _XOR(r.AF.A, cpu.read(r.HL.pair), 1, 8);
       case 0xEE: _XOR(r.AF.A, cpu.read(r.pc + 1), 2, 8);
-
+      case 0xBF: _CP(r.AF.A, r.AF.A, 1, 4);
+      case 0xB8: _CP(r.AF.A, r.BC.B, 1, 4);
+      case 0xB9: _CP(r.AF.A, r.BC.C, 1, 4);
+      case 0xBA: _CP(r.AF.A, r.DE.D, 1, 4);
+      case 0xBB: _CP(r.AF.A, r.DE.E, 1, 4);
+      case 0xBC: _CP(r.AF.A, r.HL.H, 1, 4);
+      case 0xBD: _CP(r.AF.A, r.HL.L, 1, 4);
+      case 0xBE: _CP(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xFE: _CP(r.AF.A, cpu.read(r.pc + 1), 2, 8);
+      case 0x3C: _INC(r.AF.A, 1, 4);
+      case 0x04: _INC(r.BC.B, 1, 4);
+      case 0x0C: _INC(r.BC.C, 1, 4);
+      case 0x14: _INC(r.DE.D, 1, 4);
+      case 0x1C: _INC(r.DE.E, 1, 4);
+      case 0x24: _INC(r.HL.H, 1, 4);
+      case 0x2C: _INC(r.HL.L, 1, 4);
+      case 0x34: _INCMEM((r.HL.pair), 1, 12);
+      case 0x3D: _DEC(r.AF.A, 1, 4);
+      case 0x05: _DEC(r.BC.B, 1, 4);
+      case 0x0D: _DEC(r.BC.C, 1, 4);
+      case 0x15: _DEC(r.DE.D, 1, 4);
+      case 0x1D: _DEC(r.DE.E, 1, 4);
+      case 0x25: _DEC(r.HL.H, 1, 4);
+      case 0x2D: _DEC(r.HL.L, 1, 4);
+      case 0x35: _DECMEM((r.HL.pair), 1, 12);
+      case 0x09: _ADD16(r.HL.pair, r.BC.pair, 1, 8);
+      case 0x19: _ADD16(r.HL.pair, r.DE.pair, 1, 8);
+      case 0x29: _ADD16(r.HL.pair, r.HL.pair, 1, 8);
+      case 0x39: _ADD16(r.HL.pair, r.sp, 1, 8);
+      case 0xE8: FRESET(Z); _ADD16(r.sp, (int)cpu.read(r.pc + 1), 2, 16); // reverifier si ADD ou ADDMEM ?
+      case 0x03: _INCREG(r.BC.pair, 1, 8);
+      case 0x13: _INCREG(r.DE.pair, 1, 8);
+      case 0x23: _INCREG(r.HL.pair, 1, 8);
+      case 0x33: _INCREG(r.sp, 1, 8);
+      case 0x0B: _DECREG(r.BC.pair, 1, 8);
+      case 0x1B: _DECREG(r.DE.pair, 1, 8);
+      case 0x2B: _DECREG(r.HL.pair, 1, 8);
+      case 0x3B: _DECREG(r.sp, 1, 8);
+      case 0xCB: return bitOp(cpu);
       default:
         std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
         return {4,1};

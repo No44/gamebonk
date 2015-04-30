@@ -1,5 +1,6 @@
 #include <iostream>
 #include <iomanip>
+#include <map>
 
 #include "MMU.hpp"
 #include "CPU.hpp"
@@ -156,6 +157,7 @@ namespace GBonk
 
 #define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define FTOGGLE(FLAG) { r.AF.F ^= static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define FASSIGN(FLAG, V) { r.AF.F ^= (- !!(V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define _8BHCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
 #define _8BCARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
@@ -167,9 +169,7 @@ namespace GBonk
 #define BORROW(IN, RES) ((RES) >= (IN))
 #define FBORROWS(IN, RES) { FASSIGN(H, !HBORROW(IN, RES)); FASSIGN(C, !BORROW(IN, RES)); }
 
-// LD
 #define _LD(DST, SRC, LEN, CYCLES) { DST = SRC; return {CYCLES, LEN}; }
-// LD to memory location
 #define _8BLDMEM(DST, SRC, LEN, CYCLES) { cpu.write(SRC, DST); return {CYCLES, LEN}; }
 #define _16BLDMEM(DST, SRC, LEN, CYCLES) { cpu.writew(SRC, DST); return {CYCLES, LEN}; }
 #define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN}; }
@@ -184,16 +184,163 @@ namespace GBonk
 #define _INC(DST, LEN, CYCLES) { int ini = DST; DST++; FASSIGN(Z, !DST); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN}; }
 #define _INCMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini + 1, DST); FASSIGN(Z, !(ini + 1)); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN};}
 #define _DEC(DST, LEN, CYCLES) _SUB8(DST, 1, LEN, CYCLES)
-#define _DECMEM(DST, LEN, CYCLES) int ini = cpu.read(DST); cpu.write(ini - 1, DST); FASSIGN(Z, !(ini - 1)); FSET(N); FASSIGN(H, !BORROW(ini, ini - 1)); return {CYCLES, LEN}; }
+#define _DECMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini - 1, DST); FASSIGN(Z, !(ini - 1)); FSET(N); FASSIGN(H, !BORROW(ini, ini - 1)); return {CYCLES, LEN}; }
 #define _DECREG(DST, LEN, CYCLES) {DST++; return {CYCLES, LEN}; }
 #define _INCREG(DST, LEN, CYCLES) {DST--; return {CYCLES, LEN}; }
 #define _SWAP(DST, LEN, CYCLES) { DST = (((DST) & 0x0F) << 8) | (((DST) & 0xF0) >> 8); FASSIGN(Z, !(DST)); FRESET(N); FRESET(C); FRESET(H); return {CYCLES, LEN}; }
 #define _SWAPMEM(DST, LEN, CYCLES) { unsigned int val = cpu.read(DST); val = ((val & 0x0F) << 8) | ((val & 0xF0) >> 8); cpu.write(val, DST); FASSIGN(Z, !val); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
+#define _CPL(DST, LEN, CYCLES) { DST = ~DST; FSET(N); FSET(H); return {CYCLES, LEN}; }
+#define _CCF() { FTOGGLE(C); FRESET(N); FRESET(H); return {4, 1}; }
+#define _SCF() { FSET(C); FRESET(N); FRESET(H); return {4, 1}; }
+#define _NOP() { return {4, 1}; }
+#define _HALT() { cpu.halt(); return {4, 1}; }
+#define _STOP() { cpu.stop(); return {4, 1}; }
+#define _DI() { cpu.prepareDisableInterrupts(); return{4, 1}; }
+#define _EI() { cpu.prepareEnableInterrupts(); return {4, 1}; }
+#define _RLC(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= lb; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RLCMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= lb; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _RL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= !!(r.AF.F & (unsigned int)CPU::Flags::C); FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RLMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= !!(r.AF.F & (unsigned int)CPU::Flags::C); cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _RRC(DST, LEN, CYCLES) {uint32_t fb = (DST) & 1; DST >>= 1; DST |= fb << 7; FASSIGN(C, fb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RRCMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= fb << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RR(DST, LEN, CYCLES) { uint32_t fb = (DST) & 1; DST >>= 1; DST |= (!!(r.AF.F & (unsigned int)CPU::Flags::C)) << 7; FASSIGN(C, fb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RRMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= (!!(r.AF.F & (unsigned int)CPU::Flags::C)) << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _SL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST &= ~1; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {4, 1}; }
+#define _SLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = (unsigned int)(v) >> 7; v <<= 1; v &= ~1; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {4, 1}; }
+#define _SRA(DST, LEN, CYCLES) {DST = (int)(DST) >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _SRAMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); v = (int)(v) >> 1; cpu.write(v, DST); uint32_t fb = (v) & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _SRL(DST, LEN, CYCLES) { DST = (unsigned int)DST >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _SRLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); v >>= 1; cpu.write(v, DST); uint32_t fb = v & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
 
-    static inline CPU::OpFormat bitOp(CPU& cpu)
+    static inline CPU::OpFormat DAA(CPU& cpu, CPU::Registers& r)
     {
-      CPU::Registers& r = cpu.registers_;
-      unsigned int op = cpu.mmu_.read(r.pc + 1);
+        uint32_t upper = (r.AF.A & 0xF0) >> 8;
+        uint32_t lower = (r.AF.A & 0xF);
+        bool C = r.AF.F & (unsigned int)CPU::Flags::C;
+        bool H = r.AF.F & (unsigned int)CPU::Flags::H;
+        bool N = r.AF.F & (unsigned int)CPU::Flags::N;
+
+        if (!N)
+        {
+            if (!C)
+            {
+                if (upper <= 0x9)
+                {
+                    if (!H)
+                    {
+                        if (lower <= 0x9)
+                        {
+                            FRESET(C);
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                    else /* if H */
+                    {
+                        if (lower <= 0x3)
+                        {
+                            FRESET(C);
+                            r.AF.A += 0x06;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+                if (upper <= 0x8)
+                {
+                    if (!H)
+                    {
+                        if (lower >= 0xA)
+                        {
+                            FRESET(C);
+                            r.AF.A += 0x06;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+                if (upper >= 0xA)
+                {
+                    if (!H)
+                    {
+                        if (lower <= 0x9)
+                        {
+                            FSET(C);
+                            r.AF.A += 0x60;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                    else
+                    {
+                        if (lower <= 0x3)
+                        {
+                            FSET(C);
+                            r.AF.A += 0x66;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+                if (upper >= 0x9)
+                {
+                    if (!H)
+                    {
+                        if (lower >= 0xA)
+                        {
+                            FSET(C);
+                            r.AF.A += 0x66;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+            }
+            else /* if C */
+            {
+                if (upper <= 0x2)
+                {
+                    if (!H)
+                    {
+                        if (lower <= 0x9)
+                        {
+                            FSET(C);
+                            r.AF.A += 0x60;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                        else /* if (lower >= 0xA) */
+                        {
+                            FSET(C);
+                            r.AF.A += 0x66;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+                else if (upper <= 0x3)
+                {
+                    if (H)
+                    {
+                        if (lower <= 0x3)
+                        {
+                            FSET(C);
+                            r.AF.A += 0x66;
+                            FASSIGN(Z, !r.AF.A);
+                            return{ 4, 1 };
+                        }
+                    }
+                }
+            }
+        }
+        FASSIGN(Z, !r.AF.A);
+        return{ 4, 1 };
+    }
+
+    static inline CPU::OpFormat bitOp(CPU& cpu, CPU::Registers& r)
+    {
+      //CPU::Registers& r = cpu.registers_;
+      unsigned int op = cpu.read(r.pc + 1);
 
       switch (op)
       {
@@ -205,7 +352,74 @@ namespace GBonk
       case 0x34: _SWAP(r.HL.H, 2, 8);
       case 0x35: _SWAP(r.HL.L, 2, 8);
       case 0x36: _SWAPMEM((r.HL.pair), 2, 16);
+      case 0x07: _RLC(r.AF.A, 2, 8);
+      case 0x00: _RLC(r.BC.B, 2, 8);
+      case 0x01: _RLC(r.BC.C, 2, 8);
+      case 0x02: _RLC(r.DE.D, 2, 8);
+      case 0x03: _RLC(r.DE.E, 2, 8);
+      case 0x04: _RLC(r.HL.H, 2, 8);
+      case 0x05: _RLC(r.HL.L, 2, 8);
+      case 0x06: _RLCMEM((r.HL.pair), 2, 16);
+      case 0x17: _RL(r.AF.A, 2, 8);
+      case 0x10: _RL(r.BC.B, 2, 8);
+      case 0x11: _RL(r.BC.C, 2, 8);
+      case 0x12: _RL(r.DE.D, 2, 8);
+      case 0x13: _RL(r.DE.E, 2, 8);
+      case 0x14: _RL(r.HL.H, 2, 8);
+      case 0x15: _RL(r.HL.L, 2, 8);
+      case 0x16: _RLMEM((r.HL.pair), 2, 16);
+      case 0x0F: _RRC(r.AF.A, 2, 8);
+      case 0x08: _RRC(r.BC.B, 2, 8);
+      case 0x09: _RRC(r.BC.C, 2, 8);
+      case 0x0A: _RRC(r.DE.D, 2, 8);
+      case 0x0B: _RRC(r.DE.E, 2, 8);
+      case 0x0C: _RRC(r.HL.H, 2, 8);
+      case 0x0D: _RRC(r.HL.L, 2, 8);
+      case 0x0E: _RRCMEM((r.HL.pair), 2, 16);
+      case 0x1F: _RR(r.AF.A, 2, 8);
+      case 0x18: _RR(r.BC.B, 2, 8);
+      case 0x19: _RR(r.BC.C, 2, 8);
+      case 0x1A: _RR(r.DE.D, 2, 8);
+      case 0x1B: _RR(r.DE.E, 2, 8);
+      case 0x1C: _RR(r.HL.H, 2, 8);
+      case 0x1D: _RR(r.HL.L, 2, 8);
+      case 0x1E: _RRMEM((r.HL.pair),2,16);
+      case 0x27: _SL(r.AF.A, 2, 8);
+      case 0x20: _SL(r.BC.B, 2, 8);
+      case 0x21: _SL(r.BC.C, 2, 8);
+      case 0x22: _SL(r.DE.D, 2, 8);
+      case 0x23: _SL(r.DE.E, 2, 8);
+      case 0x24: _SL(r.HL.H, 2, 8);
+      case 0x25: _SL(r.HL.L, 2, 8);
+      case 0x26: _SLMEM((r.HL.pair), 2, 16);
+      case 0x2F: _SRA(r.AF.A, 2, 8);
+      case 0x28: _SRA(r.BC.B, 2, 8);
+      case 0x29: _SRA(r.BC.C, 2, 8);
+      case 0x2A: _SRA(r.DE.D, 2, 8);
+      case 0x2B: _SRA(r.DE.E, 2, 8);
+      case 0x2C: _SRA(r.HL.H, 2, 8);
+      case 0x2D: _SRA(r.HL.L, 2, 8);
+      case 0x2E: _SRAMEM((r.HL.pair), 2, 16);
+      case 0x3F: _SRL(r.AF.A, 2, 8);
+      case 0x38: _SRL(r.BC.B, 2, 8);
+      case 0x39: _SRL(r.BC.C, 2, 8);
+      case 0x3A: _SRL(r.DE.D, 2, 8);
+      case 0x3B: _SRL(r.DE.E, 2, 8);
+      case 0x3C: _SRL(r.HL.H, 2, 8);
+      case 0x3D: _SRL(r.HL.L, 2, 8);
+      case 0x3E: _SRLMEM((r.HL.pair), 2, 16);
       }
+      return{ 4, 1 }; // todo: ?
+    }
+
+    static inline CPU::OpFormat gbOp(CPU& cpu, CPU::Registers& r)
+    {
+        unsigned int op = cpu.read(r.pc + 1);
+        switch (op)
+        {
+        case 0x00: _STOP();
+        }
+        return{ 4, 1 }; // todo: ?
     }
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
@@ -313,8 +527,8 @@ namespace GBonk
         FRESET(N);
         unsigned int op = r.sp;
         int rh = (int)cpu.read(r.pc + 1);
-        FASSIGN(H, HCARRY(op, rh));
-        FASSIGN(C, CARRY(op, rh));
+        FASSIGN(H, _8BHCARRY(op, rh));
+        FASSIGN(C, _8BCARRY(op, rh));
         _LD(r.HL.pair, op + rh, 2, 12);
       }
       case 0x08: _8BLDMEM((cpu.readw(r.pc + 1)), r.sp, 3, 20);
@@ -427,7 +641,20 @@ namespace GBonk
       case 0x1B: _DECREG(r.DE.pair, 1, 8);
       case 0x2B: _DECREG(r.HL.pair, 1, 8);
       case 0x3B: _DECREG(r.sp, 1, 8);
-      case 0xCB: return bitOp(cpu);
+      case 0xCB: return bitOp(cpu, r);
+      case 0x27: return DAA(cpu, r);
+      case 0x2F: _CPL(r.AF.A, 1, 4);
+      case 0x3F: _CCF();
+      case 0x37: _SCF();
+      case 0x00: _NOP();
+      case 0x76: _HALT();
+      case 0x10: return gbOp(cpu, r);
+      case 0xF3: _DI();
+      case 0xFB: _EI();
+      case 0x07: _RLC(r.AF.A, 1, 4);
+      case 0x17: _RL(r.AF.A, 1, 4);
+      case 0x0F: _RRC(r.AF.A, 1, 4);
+      case 0x1F: _RR(r.AF.A, 1, 4);
       default:
         std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
         return {4,1};

@@ -32,6 +32,13 @@ namespace GBonk
 
         void load(Cartridge&);
 
+        enum class Flags : unsigned int
+        {
+            Z = 1 << 7, // zero
+            N = 1 << 6, // subtract
+            H = 1 << 5, // half-carry
+            C = 1 << 4, // carry
+        };
         struct Registers
         {
             REGPAIR(A,F);
@@ -59,6 +66,19 @@ namespace GBonk
         Clock globalClock_;
 
         void run();
+        void halt();
+        void stop();
+        // interrupts will be disabled after the next
+        // instruction is ran
+        void prepareDisableInterrupts();
+        // immediatly disable interrupts
+        void disableInterrupts();
+        // interrupts will be enabled after the next
+        // instruction is ran
+        void prepareEnableInterrupts();
+        // immediatly enable interrupts
+        void enableInterrupts();
+
         void write(unsigned int value, uint32_t addr);
         void writew(unsigned int value, uint32_t addr);
         unsigned int read(uint32_t addr);
@@ -66,14 +86,6 @@ namespace GBonk
 
     private:
         void launchSequence_();
-
-        enum class Flags
-        {
-          Z = 1 << 7, // zero
-          N = 1 << 6, // subtract
-          H = 1 << 5, // half-carry
-          C = 1 << 4, // carry
-        };
 
         friend OpFormat runCurrentOp(CPU&);
 

@@ -19,6 +19,11 @@ namespace GBonk
     {
         switch (addr & 0xF000)
         {
+        case 0x0000:
+        case 0x1000:
+        case 0x2000:
+        case 0x3000:
+            return cartridgeROM_[addr];
         case 0x4000:
         case 0x5000:
         case 0x6000:
@@ -41,6 +46,11 @@ namespace GBonk
 
         switch (addr & 0xF000)
         {
+        case 0x0000:
+        case 0x1000:
+        case 0x2000:
+        case 0x3000:
+            return cartridgeROM_[addr] | (cartridgeROM_[addr + 1] << 8);
         case 0x4000:
         case 0x5000:
         case 0x6000:

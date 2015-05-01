@@ -92,6 +92,10 @@ namespace GBonk
         {
         // Reads to switchable ROM/RAM banks need to consider
         // associated offsets.
+        case 0x0000:
+        case 0x1000:
+        case 0x2000:
+        case 0x3000:
         case 0x4000:
         case 0x5000:
         case 0x6000:

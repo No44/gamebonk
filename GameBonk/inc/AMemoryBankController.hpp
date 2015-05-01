@@ -9,6 +9,9 @@ namespace GBonk
 
     class Cartridge;
 
+    // Only takes care of:
+    // - writing memory with special effects
+    // - reading from RAM/ROM banks
     class AMemoryBankController
     {
     public:
@@ -48,6 +51,7 @@ namespace GBonk
         Type type() const { return type_; }
 
         virtual void write(unsigned int val, uint32_t addr) = 0;
+        virtual void writew(unsigned int val, uint32_t addr) = 0;
         virtual unsigned int read(uint32_t addr) const = 0;
         virtual unsigned int readw(uint32_t addr) const = 0;
 

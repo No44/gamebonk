@@ -71,16 +71,17 @@ namespace GBonk
         case 0xD000:
             // need to echo
             systemMem_[addr] = value & 0xFF;
-            systemMem_[addr + 1] = value & 0xFF00 >> 8;
+            systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             if (addr < 0xDDFF)
             {
                 systemMem_[addr] = value & 0xFF;
-                systemMem_[addr + 1] = value & 0xFF00 >> 8;
+                systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             }
             return;
         default:
             // todo: a garder ?
-            systemMem_[addr] = value;
+            systemMem_[addr] = value & 0xFF;
+            systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             return;
         }
     }

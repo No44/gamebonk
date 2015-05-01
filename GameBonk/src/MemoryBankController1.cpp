@@ -18,14 +18,6 @@ namespace GBonk
 
         switch (addr & 0xF000)
         {
-            /*
-        case 0x0000:
-        case 0x1000:
-        case 0x2000:
-        case 0x3000:
-            byte = cartridgeROM_[addr];
-            break;
-            */
         case 0x4000:
         case 0x5000:
         case 0x6000:
@@ -46,14 +38,7 @@ namespace GBonk
 
         switch (addr & 0xF000)
         {
-            /*
-            case 0x0000:
-            case 0x1000:
-            case 0x2000:
-            case 0x3000:
-            byte = cartridgeROM_[addr];
-            break;
-            */
+        //todo:
         case 0x4000:
         case 0x5000:
         case 0x6000:
@@ -120,22 +105,4 @@ namespace GBonk
         // todo: RAM writes
         }
     }
-
-
-
 }
-
-
-/*
-if (mode)
-{
-mmodeROM_ = (512 * (1 << 10)); // 4Mbit
-mmodeRAM_ = 32 * (1 << 10); // 32Kbyte
-}
-else
-{
-mmodeROM_ = (32 * (1 << 10)) << 6; // 16Mbit
-mmodeRAM_ = 8 * (1 << 10); //8Kbyte
-}
-
-*/

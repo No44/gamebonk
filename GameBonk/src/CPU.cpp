@@ -159,6 +159,7 @@ namespace GBonk
 #define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define FTOGGLE(FLAG) { r.AF.F ^= static_cast<unsigned int>(CPU::Flags::FLAG); }
 #define FASSIGN(FLAG, V) { r.AF.F ^= (- !!(V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
+#define FISSET(FLAG) (r.AF.F & static_cast<unsigned int>(CPU::Flags::FLAG))
 #define _8BHCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
 #define _8BCARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
 #define F8BCARRIES(X, Y) { FASSIGN(H, _8BHCARRY(X, Y)); FASSIGN(C, _8BCARRY(X, Y)); }
@@ -195,7 +196,7 @@ namespace GBonk
 #define _NOP() { return {4, 1}; }
 #define _HALT() { cpu.halt(); return {4, 1}; }
 #define _STOP() { cpu.stop(); return {4, 1}; }
-#define _DI() { cpu.prepareDisableInterrupts(); return{4, 1}; }
+#define _DI_() { cpu.prepareDisableInterrupts(); return{4, 1}; }
 #define _EI() { cpu.prepareEnableInterrupts(); return {4, 1}; }
 #define _RLC(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= lb; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _RLCMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= lb; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
@@ -211,14 +212,43 @@ namespace GBonk
 #define _SRAMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); v = (int)(v) >> 1; cpu.write(v, DST); uint32_t fb = (v) & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _SRL(DST, LEN, CYCLES) { DST = (unsigned int)DST >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _SRLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); v >>= 1; cpu.write(v, DST); uint32_t fb = v & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _BIT(DST, B, LEN, CYCLES) { FASSIGN(Z, !((DST) & (1 << B))); FRESET(N); FSET(H); return {CYCLES, LEN}; }
+#define _BITMEM(DST, B, LEN, CYCLES) { uint32_t v = cpu.read(DST); FASSIGN(Z, !(v & (1 << B))); FRESET(N); FSET(H); return { CYCLES, LEN }; }
+#define _SET(DST, B, LEN, CYCLES) { DST |= 1 << B; return {CYCLES, LEN}; }
+#define _SETMEM(DST, B, LEN, CYCLES) { uint32_t v = cpu.read(DST); v |= 1 << B; cpu.write(v, DST); return {CYCLES, LEN}; }
+#define _RES(DST, B, LEN, CYCLES) { DST &= ~(1 << B); return {CYCLES, LEN}; }
+#define _RESMEM(DST, B, LEN, CYCLES) { uint32_t v = cpu.read(DST); v &= ~(1 << B); cpu.write(v, DST); return {CYCLES, LEN};}
+#define _JP() { uint32_t addr = cpu.readw(r.pc + 1); r.pc = addr; return {12, 0}; }
+#define _JPNZ() { if (FISSET(Z)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
+#define _JPZ() { if (!FISSET(Z)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
+#define _JPNC() { if (FISSET(C)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
+#define _JPC() { if (!FISSET(C)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
+#define _JPHL() { r.pc = r.HL.pair; return {4, 0}; }
+#define _JR() { int val = (int)cpu.read(r.pc + 1); r.pc += val; return {8, 0}; }
+#define _JRNZ() { if (FISSET(Z)) return {8, 2}; _JR() }
+#define _JRZ() { if (!FISSET(Z)) return {8, 2}; _JR() }
+#define _JRNC() { if (FISSET(C)) return {8, 2}; _JR() }
+#define _JRC() { if (!FISSET(C)) return {8, 2}; _JR() }
+#define _CALL() { uint32_t nextIns = r.pc + 3; cpu.writew(nextIns, --r.sp); _JP() }
+#define _CALLNZ() { if (FISSET(Z)) return {12, 3}; _CALL() }
+#define _CALLZ() { if (!FISSET(Z)) return {12, 3}; _CALL() }
+#define _CALLNC() { if (FISSET(C)) return {12, 3}; _CALL() }
+#define _CALLC() { if (!FISSET(C)) return {12, 3}; _CALL() }
+#define _RST(ADDR) { r.sp -= 2; cpu.writew(r.pc + 1, r.sp); r.pc = ADDR; return {32, 0}; }
+#define _RET() { r.pc = cpu.readw(r.sp); r.sp += 2; return {8, 0};}
+#define _RETNZ() { if (FISSET(Z)) return {8, 1}; _RET() }
+#define _RETZ() { if (!FISSET(Z)) return {8, 1}; _RET() }
+#define _RETNC() { if (FISSET(C)) return {8, 1}; _RET() }
+#define _RETC() { if (!FISSET(C)) return {8, 1}; _RET() }
+#define _RETI() { cpu.prepareEnableInterrupts(); _RET() }
 
     static inline CPU::OpFormat DAA(CPU& cpu, CPU::Registers& r)
     {
         uint32_t upper = (r.AF.A & 0xF0) >> 8;
         uint32_t lower = (r.AF.A & 0xF);
-        bool C = r.AF.F & (unsigned int)CPU::Flags::C;
-        bool H = r.AF.F & (unsigned int)CPU::Flags::H;
-        bool N = r.AF.F & (unsigned int)CPU::Flags::N;
+        bool C = !!(r.AF.F & (unsigned int)CPU::Flags::C);
+        bool H = !!(r.AF.F & (unsigned int)CPU::Flags::H);
+        bool N = !!(r.AF.F & (unsigned int)CPU::Flags::N);
 
         if (!N)
         {
@@ -408,6 +438,89 @@ namespace GBonk
       case 0x3C: _SRL(r.HL.H, 2, 8);
       case 0x3D: _SRL(r.HL.L, 2, 8);
       case 0x3E: _SRLMEM((r.HL.pair), 2, 16);
+      case 0x47: _BIT(r.AF.A, 0, 2, 8);
+      case 0x40: _BIT(r.BC.B, 0, 2, 8);
+      case 0x41: _BIT(r.BC.C, 0, 2, 8);
+      case 0x42: _BIT(r.DE.D, 0, 2, 8);
+      case 0x43: _BIT(r.DE.E, 0, 2, 8);
+      case 0x44: _BIT(r.HL.H, 0, 2, 8);
+      case 0x45: _BIT(r.HL.L, 0, 2, 8);
+      case 0x46: _BITMEM((r.HL.pair), 0, 2, 16);
+      case 0x4F: _BIT(r.AF.A, 1, 2, 8);
+      case 0x48: _BIT(r.BC.B, 1, 2, 8);
+      case 0x49: _BIT(r.BC.C, 1, 2, 8);
+      case 0x4A: _BIT(r.DE.D, 1, 2, 8);
+      case 0x4B: _BIT(r.DE.E, 1, 2, 8);
+      case 0x4C: _BIT(r.HL.H, 1, 2, 8);
+      case 0x4D: _BIT(r.HL.L, 1, 2, 8);
+      case 0x4E: _BITMEM((r.HL.pair), 1, 2, 16);
+      case 0x57: _BIT(r.AF.A, 2, 2, 8);
+      case 0x50: _BIT(r.BC.B, 2, 2, 8);
+      case 0x51: _BIT(r.BC.C, 2, 2, 8);
+      case 0x52: _BIT(r.DE.D, 2, 2, 8);
+      case 0x53: _BIT(r.DE.E, 2, 2, 8);
+      case 0x54: _BIT(r.HL.H, 2, 2, 8);
+      case 0x55: _BIT(r.HL.L, 2, 2, 8);
+      case 0x56: _BITMEM((r.HL.pair), 2, 2, 16);
+      case 0x5F: _BIT(r.AF.A, 3, 2, 8);
+      case 0x58: _BIT(r.BC.B, 3, 2, 8);
+      case 0x59: _BIT(r.BC.C, 3, 2, 8);
+      case 0x5A: _BIT(r.DE.D, 3, 2, 8);
+      case 0x5B: _BIT(r.DE.E, 3, 2, 8);
+      case 0x5C: _BIT(r.HL.H, 3, 2, 8);
+      case 0x5D: _BIT(r.HL.L, 3, 2, 8);
+      case 0x5E: _BITMEM((r.HL.pair), 3, 2, 16);
+      case 0x67: _BIT(r.AF.A, 4, 2, 8);
+      case 0x60: _BIT(r.BC.B, 4, 2, 8);
+      case 0x61: _BIT(r.BC.C, 4, 2, 8);
+      case 0x62: _BIT(r.DE.D, 4, 2, 8);
+      case 0x63: _BIT(r.DE.E, 4, 2, 8);
+      case 0x64: _BIT(r.HL.H, 4, 2, 8);
+      case 0x65: _BIT(r.HL.L, 4, 2, 8);
+      case 0x66: _BITMEM((r.HL.pair), 4, 2, 16);
+      case 0x6F: _BIT(r.AF.A, 5, 2, 8);
+      case 0x68: _BIT(r.BC.B, 5, 2, 8);
+      case 0x69: _BIT(r.BC.C, 5, 2, 8);
+      case 0x6A: _BIT(r.DE.D, 5, 2, 8);
+      case 0x6B: _BIT(r.DE.E, 5, 2, 8);
+      case 0x6C: _BIT(r.HL.H, 5, 2, 8);
+      case 0x6D: _BIT(r.HL.L, 5, 2, 8);
+      case 0x6E: _BITMEM((r.HL.pair), 5, 2, 16);
+      case 0x77: _BIT(r.AF.A, 6, 2, 8);
+      case 0x70: _BIT(r.BC.B, 6, 2, 8);
+      case 0x71: _BIT(r.BC.C, 6, 2, 8);
+      case 0x72: _BIT(r.DE.D, 6, 2, 8);
+      case 0x73: _BIT(r.DE.E, 6, 2, 8);
+      case 0x74: _BIT(r.HL.H, 6, 2, 8);
+      case 0x75: _BIT(r.HL.L, 6, 2, 8);
+      case 0x76: _BITMEM((r.HL.pair), 6, 2, 16);
+      case 0x7F: _BIT(r.AF.A, 7, 2, 8);
+      case 0x78: _BIT(r.BC.B, 7, 2, 8);
+      case 0x79: _BIT(r.BC.C, 7, 2, 8);
+      case 0x7A: _BIT(r.DE.D, 7, 2, 8);
+      case 0x7B: _BIT(r.DE.E, 7, 2, 8);
+      case 0x7C: _BIT(r.HL.H, 7, 2, 8);
+      case 0x7D: _BIT(r.HL.L, 7, 2, 8);
+      case 0x7E: _BITMEM((r.HL.pair), 7, 2, 16);
+      case 0xC7: _SET(r.AF.A, 0, 2, 8);
+      case 0xC0: _SET(r.BC.B, 0, 2, 8);
+      case 0xC1: _SET(r.BC.C, 0, 2, 8);
+      case 0xC2: _SET(r.DE.D, 0, 2, 8);
+      case 0xC3: _SET(r.DE.E, 0, 2, 8);
+      case 0xC4: _SET(r.HL.H, 0, 2, 8);
+      case 0xC5: _SET(r.HL.L, 0, 2, 8);
+      case 0xC6: _SETMEM((r.HL.pair), 0, 2, 16);
+      case 0x87: _RES(r.AF.A, 0, 2, 8);
+      case 0x80: _RES(r.BC.B, 0, 2, 8);
+      case 0x81: _RES(r.BC.C, 0, 2, 8);
+      case 0x82: _RES(r.DE.D, 0, 2, 8);
+      case 0x83: _RES(r.DE.E, 0, 2, 8);
+      case 0x84: _RES(r.HL.H, 0, 2, 8);
+      case 0x85: _RES(r.HL.L, 0, 2, 8);
+      case 0x86: _RESMEM((r.HL.pair), 0, 2, 8);
+      default:
+          std::cerr << "Uninplemented CB op: " << std::hex << op << std::endl;
+          abort();
       }
       return{ 4, 1 }; // todo: ?
     }
@@ -418,6 +531,9 @@ namespace GBonk
         switch (op)
         {
         case 0x00: _STOP();
+        default:
+            std::cerr << "Uninplemented GB op: " << std::hex << op << std::endl;
+            abort();
         }
         return{ 4, 1 }; // todo: ?
     }
@@ -649,14 +765,45 @@ namespace GBonk
       case 0x00: _NOP();
       case 0x76: _HALT();
       case 0x10: return gbOp(cpu, r);
-      case 0xF3: _DI();
+      case 0xF3: _DI_();
       case 0xFB: _EI();
       case 0x07: _RLC(r.AF.A, 1, 4);
       case 0x17: _RL(r.AF.A, 1, 4);
       case 0x0F: _RRC(r.AF.A, 1, 4);
       case 0x1F: _RR(r.AF.A, 1, 4);
+      case 0xC3: _JP();
+      case 0xC2: _JPNZ();
+      case 0xCA: _JPZ();
+      case 0xD2: _JPNC();
+      case 0xDA: _JPC();
+      case 0xE9: _JPHL();
+      case 0x18: _JR();
+      case 0x20: _JRNZ();
+      case 0x28: _JRZ();
+      case 0x30: _JRNC();
+      case 0x38: _JRC();
+      case 0xCD: _CALL();
+      case 0xC4: _CALLNZ();
+      case 0xCC: _CALLZ();
+      case 0xD4: _CALLNC();
+      case 0xDC: _CALLC();
+      case 0xC7: _RST(0x0);
+      case 0xCF: _RST(0x8);
+      case 0xD7: _RST(0x10);
+      case 0xDF: _RST(0x18);
+      case 0xE7: _RST(0x20);
+      case 0xEF: _RST(0x28);
+      case 0xF7: _RST(0x30);
+      case 0xFF: _RST(0x38);
+      case 0xC9: _RET();
+      case 0xC0: _RETNZ();
+      case 0xC8: _RETZ();
+      case 0xD0: _RETNC();
+      case 0xD8: _RETC();
+      case 0xD9: _RETI();
       default:
         std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
+        abort();
         return {4,1};
       }
     }

@@ -39,10 +39,12 @@ namespace GBonk
             void draw();
 
         private:
-            static const int width = 256;
-            static const int height = 256;
-            static const int tiles = 32;
-            static const int tileSize = 8;
+            static const unsigned int fbwidth = 256;
+            static const unsigned int fbheight = 256;
+            static const unsigned int width = 160;
+            static const unsigned int height = 144;
+            static const unsigned int tiles = 32;
+            static const unsigned int tileSize = 8;
 
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00

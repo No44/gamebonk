@@ -10,18 +10,15 @@ namespace GBonk
 {
 
     CPU::CPU()
-        : video_(mmu_.memory() + MMU::VIDEO_RAM, mmu_.memory() + MMU::SPRITE_ATTRIB_MEMORY)
+        : interruptMasterEnable_(true),
+        interruptsEnabled_(0),
+        video_(mmu_.memory() + MMU::VIDEO_RAM, mmu_.memory() + MMU::SPRITE_ATTRIB_MEMORY)
     {
     }
 
     void CPU::load(Cartridge& game)
     {
         game_ = &game;
-    }
-
-
-    static unsigned int runOp()
-    {
     }
 
     void CPU::run()
@@ -41,6 +38,15 @@ namespace GBonk
             if (counter <= 0)
             {
                 // run interrupts
+                /*
+                if runInterrupt:
+                    if_ = true;
+                    interruptMasterEnable_ = false;
+                    r.sp -= 2;
+                    writew(r.pc, r.sp);
+                    r.pc = interrupt_start_address;
+                
+                */
                 counter += CPU::InterruptPeriod;
                 // if (exitRequested)
                 // break;
@@ -116,7 +122,7 @@ namespace GBonk
     {
         registers_.pc = 0x100;
         registers_.AF.pair = 1;
-        registers_.AF.A = 0xB0;
+        registers_.AF.F = 0xB0;
         registers_.BC.pair = 0x13;
         registers_.DE.pair = 0xD8;
         registers_.HL.pair = 0x14D;
@@ -522,7 +528,7 @@ namespace GBonk
           std::cerr << "Uninplemented CB op: " << std::hex << op << std::endl;
           abort();
       }
-      return{ 4, 1 }; // todo: ?
+      return{ 4, 2 }; // todo: ?
     }
 
     static inline CPU::OpFormat gbOp(CPU& cpu, CPU::Registers& r)
@@ -535,7 +541,7 @@ namespace GBonk
             std::cerr << "Uninplemented GB op: " << std::hex << op << std::endl;
             abort();
         }
-        return{ 4, 1 }; // todo: ?
+        return{ 4, 2 }; // todo: ?
     }
 
     static CPU::OpFormat runCurrentOp(CPU& cpu)
@@ -544,10 +550,8 @@ namespace GBonk
       MMU& mmu = cpu.mmu_;
 
       unsigned int op = mmu.read(cpu.registers_.pc);
-      //case 0x:
       switch (op)
       {
-      // 8-bit loads
       case 0x06: _LD(r.BC.B, cpu.read(r.pc + 1), 2, 8);
       case 0x0E: _LD(r.BC.C, cpu.read(r.pc + 1), 2, 8);
       case 0x16: _LD(r.DE.D, cpu.read(r.pc + 1), 2, 8);

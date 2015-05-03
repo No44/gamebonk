@@ -31,7 +31,7 @@ namespace GBonk
             uint8_t* baseAddr = vram_ - MMU::VIDEO_RAM;
             
             lcdc_.value = val;
-            tilePatternTable_.setAddr(baseAddr + tile_pattern_table_addresses[lcdc_.tilePttrnAddrMode]);
+            tilePatternTable_.setAddr(baseAddr, tile_pattern_table_addresses[lcdc_.tilePttrnAddrMode]);
             backgroundTable_.setAddr(baseAddr + background_tile_table_addresses[lcdc_.bckgrdTileTableAddrMode]);
             windowTable_.setAddr(baseAddr + window_tile_table_addresses[lcdc_.wdwTileTableAddrMode]);
         }

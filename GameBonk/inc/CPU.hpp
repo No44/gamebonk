@@ -5,6 +5,7 @@
 
 #include "video/VideoSystem.hpp"
 #include "MMU.hpp"
+#include "IORegistersRepository.hpp"
 
 
 #define REGPAIR(FIRST, SECOND) union { \
@@ -13,7 +14,6 @@
          uint8_t SECOND;      \
        };                     \
        uint16_t  pair;        \
-                              \
 } FIRST##SECOND               \
 
 
@@ -59,6 +59,8 @@ namespace GBonk
             unsigned int bytes;
         };
 
+        static const unsigned int CLOCK_SPEED = 4194304;
+        static const unsigned int HORIZ_SYNC = 0;
         static const unsigned int InterruptPeriod = 0;
 
         Registers registers_;
@@ -89,9 +91,13 @@ namespace GBonk
 
         friend OpFormat runCurrentOp(CPU&);
 
-        Cartridge* game_;
+        bool interruptMasterEnable_;
+        uint32_t interruptsEnabled_;
+
+        IORegistersRepository ioregs_;
         MMU mmu_;
         Video::VideoSystem video_;
+        Cartridge* game_;
     };
 
 }

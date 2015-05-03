@@ -123,6 +123,8 @@
     <ClCompile Include="src\CPU.cpp" />
     <ClCompile Include="src\MemoryBankController1.cpp" />
     <ClCompile Include="src\MMU.cpp" />
+    <ClCompile Include="src\video\Sprite.cpp" />
+    <ClCompile Include="src\video\TilePatternTable.cpp" />
     <ClCompile Include="src\video\TileTable.cpp" />
     <ClCompile Include="src\video\VideoSystem.cpp" />
   </ItemGroup>
@@ -130,9 +132,11 @@
     <ClInclude Include="inc\AMemoryBankController.hpp" />
     <ClInclude Include="inc\Cartridge.hpp" />
     <ClInclude Include="inc\CPU.hpp" />
+    <ClInclude Include="inc\IORegistersRepository.hpp" />
     <ClInclude Include="inc\MemoryBankController1.hpp" />
     <ClInclude Include="inc\MMU.hpp" />
     <ClInclude Include="inc\video\Driver.hpp" />
+    <ClInclude Include="inc\video\Sprite.hpp" />
     <ClInclude Include="inc\video\TileTable.hpp" />
     <ClInclude Include="inc\Video\TilePatternTable.hpp" />
     <ClInclude Include="inc\Video\VideoSystem.hpp" />

@@ -65,6 +65,7 @@ namespace GBonk
             LCDC lcdc_;
 
             // AKA TileDataTable
+            TilePatternTable spritePatternTable_;
             TilePatternTable tilePatternTable_;
 
             TileTable        backgroundTable_;

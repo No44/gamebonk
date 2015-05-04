@@ -24,7 +24,7 @@ namespace GBonk
 
             TilePatternTable();
             void setAddr(const uint8_t* baseAddr, uint32_t taddr_offset);
-            Sprite getSprite(int index);
+            Sprite getSprite(int tileId, const Palette&);
             void setPalette();
 
         private:
@@ -35,9 +35,9 @@ namespace GBonk
             void buildSprite_(int idx);
 
             const uint8_t* addr_;
-            std::vector<bool> colored_;
+            std::vector<bool> built_;
             std::vector<uint32_t> pixels_;
-
+            
             int firstSpriteIdx_;
             int modeW_;
             int modeH_;

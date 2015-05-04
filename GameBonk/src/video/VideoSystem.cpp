@@ -10,7 +10,7 @@ namespace GBonk
             : vram_(v),
             spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(s))
         {
-
+            spritePatternTable_.setAddr(v - MMU::VIDEO_RAM, 0x8000);
         }
 
         static const uint32_t background_tile_table_addresses[] = {

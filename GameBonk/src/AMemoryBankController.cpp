@@ -1,3 +1,5 @@
+#include <exception>
+
 #include "AMemoryBankController.hpp"
 #include "MemoryBankController1.hpp"
 #include "Cartridge.hpp"
@@ -28,7 +30,17 @@ namespace GBonk
     AMBC* AMBC::makeMBC(const Cartridge& c)
     {
         // todo: autres MBC
-        return new MBC1(c);
+      switch (c.MBCType())
+      {
+      case AMBC::Type_ROM_ONLY:
+      case AMBC::Type_ROM_MBC1:
+      case AMBC::Type_ROM_MBC1_RAM:
+      case AMBC::Type_ROM_MBC1_RAM_BATT:
+          return new MBC1(c);
+      default:
+        throw std::exception("Not implemented");
+      }
+        return nullptr;
     }
 
 }

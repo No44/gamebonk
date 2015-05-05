@@ -5,6 +5,7 @@
 
 #include "video/TilePatternTable.hpp"
 #include "video/TileTable.hpp"
+#include "video/Sprite.hpp"
 
 namespace GBonk
 {
@@ -21,17 +22,6 @@ namespace GBonk
             {
                 SOLID,
                 TRANSPARENT,
-            };
-            struct ObjectAttribute
-            {
-                uint8_t posy;
-                uint8_t posx;
-                uint8_t pattern;
-                uint8_t priority : 1;
-                uint8_t yflip : 1;
-                uint8_t xflip : 1;
-                uint8_t palette : 1;
-                uint8_t unused : 4;
             };
            
 

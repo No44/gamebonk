@@ -4,7 +4,8 @@ project(GameBonk)
 
 include_directories(GameBonk/inc/)
 
-add_executable(GameBonk GameBonk/inc/MemoryBankController1.hpp
+add_executable(GameBonk
+  GameBonk/inc/MemoryBankController1.hpp
   GameBonk/inc/video/Driver.hpp
   GameBonk/inc/video/TilePatternTable.hpp
   GameBonk/inc/video/VideoSystem.hpp
@@ -12,7 +13,6 @@ add_executable(GameBonk GameBonk/inc/MemoryBankController1.hpp
   GameBonk/inc/video/Sprite.hpp
   GameBonk/inc/MMU.hpp
   GameBonk/inc/AMemoryBankController.hpp
-  GaneBonk/inc/MemoryBankController1.hpp
   GameBonk/inc/IORegistersRepository.hpp
   GameBonk/inc/CPU.hpp
   GameBonk/inc/Cartridge.hpp

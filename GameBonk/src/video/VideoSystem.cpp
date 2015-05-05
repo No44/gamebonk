@@ -36,6 +36,7 @@ namespace GBonk
             windowTable_.setAddr(baseAddr + window_tile_table_addresses[lcdc_.wdwTileTableAddrMode]);
         }
 
+        /*
         void VideoSystem::draw()
         {
             // std::vector<TilePattern> patterns;
@@ -72,7 +73,7 @@ namespace GBonk
                     uint32_t wnpy = this->wndposy_;
                     for (int j = 0; j < tiles && wnpy < height; ++j)
                     {
-                        unsigned int tile = windowTable_.tileId(wnpx, wnpy);
+                        int tile = windowTable_.tileId(wnpx, wnpy);
                         // tilePattern = tilePatternTable_.get(tile);
                         // draw tilePattern at (scrollx, scrolly)
                         wnpy += tileSize;
@@ -80,8 +81,37 @@ namespace GBonk
                     wnpx += tileSize;
                 }
             }
+        }
+        */
 
+        static inline bool _skipsprite(int x, int y)
+        {
+          return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
+        }
 
+        void VideoSystem::draw()
+        {
+          // total number of tiles/sprites:
+          // - 40 sprites
+          // - 32 * 32 tiles (background)
+          // - 32 * 32 tiles (window)
+          static const unsigned int TotalSprites = 40 + 32*32 * 2;
+          std::vector<Sprite> sprites;
+          sprites.resize(TotalSprites);
+
+          // high prio is drawn on top of everything
+          // low prio is drawn beneath bckground and window
+          static const unsigned int HIGH_PRIO = 0;
+          static const unsigned int LOW_PRIO = 0;
+          unsigned int spritePrioCount[2] = {0, 0};
+
+          for (int i = 0; i < 40; ++i)
+          {
+            ObjectAttribute& attr = spriteAttrMem_[i];
+            if (_skipsprite(attr.posx, attr.posy))
+              continue;
+            spritePrioCount[attr.priority]++;
+          }
         }
 
     }

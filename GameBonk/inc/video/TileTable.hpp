@@ -14,7 +14,7 @@ namespace GBonk
         public:
 
             void setAddr(const uint8_t* a) { addr_ = a; }
-            unsigned int tileId(int x, int y);
+            int tileId(int x, int y);
 
         private:
             const uint8_t* addr_;

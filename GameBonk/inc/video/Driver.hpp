@@ -9,11 +9,14 @@ namespace GBonk
     namespace Video
     {
 
+        class VideoSystem;
+        struct VideoSystem::ObjectAttribute;
+
         class Driver
         {
         public:
 
-            void draw(const Sprite&, const Sprite::Attributes&);
+            void draw(const Sprite&);
 
         private:
         };

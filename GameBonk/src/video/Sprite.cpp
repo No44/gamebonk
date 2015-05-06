@@ -50,6 +50,7 @@ namespace GBonk
           s.pixels_ = nullptr;
           w_ = 0;
           h_ = 0;
+          return *this;
         }
 
         uint32_t Sprite::at(int x, int y) const

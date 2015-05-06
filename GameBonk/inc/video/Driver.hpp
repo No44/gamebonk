@@ -10,7 +10,6 @@ namespace GBonk
     {
 
         class VideoSystem;
-        struct VideoSystem::ObjectAttribute;
 
         class Driver
         {
@@ -22,7 +21,7 @@ namespace GBonk
         };
 
     }
-
+    
 }
 
 

@@ -26,7 +26,7 @@ namespace GBonk
         static const uint32_t VIDEO_RAM = 0x8000;
         static const uint32_t SWITCHABLE_ROM_BANK = 0x4000;
         static const uint32_t ROM_BANK_0 = 0x0;
-
+        
         void setMBC(AMBC* mbc);
         void rawWrite(unsigned int value, uint32_t addr);
         void write(unsigned int value, uint32_t addr);

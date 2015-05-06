@@ -16,7 +16,7 @@ namespace GBonk
         {
             uint8_t posy;
             uint8_t posx;
-            uint8_t pattern;
+            uint8_t patternId;
             uint8_t priority : 1;
             uint8_t yflip : 1;
             uint8_t xflip : 1;
@@ -31,6 +31,8 @@ namespace GBonk
             Sprite(const uint32_t* mem, unsigned int width, unsigned int height);
             Sprite(Sprite&&);
             ~Sprite();
+            Sprite& operator=(Sprite&&);
+
             unsigned int width() const { return w_; }
             unsigned int height() const { return h_; }
             int x;

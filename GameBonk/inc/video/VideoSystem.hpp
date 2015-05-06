@@ -13,6 +13,8 @@ namespace GBonk
     namespace Video
     {
 
+
+
         class VideoSystem
         {
         public:
@@ -35,20 +37,22 @@ namespace GBonk
             static const unsigned int height = 144;
             static const unsigned int tiles = 32;
             static const unsigned int tileSize = 8;
+            static const unsigned int SPRITE_XPOS_ADJUST = 8;
+            static const unsigned int SPRITE_YPOS_ADJUST = 16;
 
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00
 
             union LCDC {
                 struct {
-                    uint32_t lcdOp : 1;
-                    uint32_t wdwTileTableAddrMode : 1;
-                    uint32_t windowDisplay : 1;
-                    uint32_t tilePttrnAddrMode : 1;
-                    uint32_t bckgrdTileTableAddrMode : 1;
-                    uint32_t spriteSizeMode : 1;
-                    uint32_t transparencyMode : 1;
-                    uint32_t backgroundDisplay : 1;
+                    uint8_t lcdOp : 1;
+                    uint8_t wdwTileTableAddrMode : 1;
+                    uint8_t windowDisplay : 1;
+                    uint8_t tilePttrnAddrMode : 1;
+                    uint8_t bckgrdTileTableAddrMode : 1;
+                    uint8_t spriteSizeMode : 1;
+                    uint8_t transparencyMode : 1;
+                    uint8_t backgroundDisplay : 1;
                 };
                 uint8_t value;
             };
@@ -60,6 +64,8 @@ namespace GBonk
 
             TileTable        backgroundTable_;
             TileTable        windowTable_;
+
+            Palette palettes_[2];
 
             uint32_t scrollx_;
             uint32_t scrolly_;

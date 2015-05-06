@@ -91,6 +91,8 @@ namespace GBonk
 
         void VideoSystem::draw()
         {
+          if (!lcdc_.lcdOp)
+            return;
           // total number of tiles/sprites:
           // - 40 sprites
           // - 32 * 32 tiles (background)
@@ -101,16 +103,31 @@ namespace GBonk
 
           // high prio is drawn on top of everything
           // low prio is drawn beneath bckground and window
+          // hence, low prio sprites should appear first in the vector
           static const unsigned int HIGH_PRIO = 0;
           static const unsigned int LOW_PRIO = 0;
           unsigned int spritePrioCount[2] = {0, 0};
-
+          unsigned int high_prio_idx = sprites.size() - 1;
           for (int i = 0; i < 40; ++i)
           {
             ObjectAttribute& attr = spriteAttrMem_[i];
             if (_skipsprite(attr.posx, attr.posy))
               continue;
+            int index = attr.priority ? LOW_PRIO++ : (HIGH_PRIO++, high_prio_idx--);
+            sprites[index] = spritePatternTable_.getSprite(attr.patternId, palettes_[attr.palette]);
+            sprites[index].x = attr.posx - SPRITE_XPOS_ADJUST;
+            sprites[index].y = attr.posy - SPRITE_YPOS_ADJUST;
+            if (attr.xflip)
+              sprites[index].flipx();
+            if (attr.yflip)
+              sprites[index].flipy();
             spritePrioCount[attr.priority]++;
+          }
+
+          unsigned int spritesBackgroundCount = 0;
+          if (lcdc_.backgroundDisplay)
+          {
+
           }
         }
 

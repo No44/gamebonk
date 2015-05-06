@@ -40,6 +40,18 @@ namespace GBonk
             pixels_ = nullptr;
         }
 
+        Sprite& Sprite::operator=(Sprite&& s)
+        {
+          if (&s == this)
+            return;
+          pixels_ = s.pixels_;
+          w_ = s.w_;
+          h_ = s.h_;
+          s.pixels_ = nullptr;
+          w_ = 0;
+          h_ = 0;
+        }
+
         uint32_t Sprite::at(int x, int y) const
         {
             return pixels_[y * w_ + x];

@@ -1,6 +1,7 @@
 #ifndef GBONK_VIDEO_VIDEOSYSTEM_HPP
 #define GBONK_VIDEO_VIDEOSYSTEM_HPP
 
+#include <array>
 #include <cstdint>
 
 #include "video/TilePatternTable.hpp"
@@ -28,15 +29,18 @@ namespace GBonk
            
 
             void setLCDC(uint32_t val);
-            void draw();
+            void drawline(int line);
 
         private:
+            void buildBackground_();
+
             static const unsigned int fbwidth = 256;
             static const unsigned int fbheight = 256;
             static const unsigned int width = 160;
             static const unsigned int height = 144;
-            static const unsigned int tiles = 32;
-            static const unsigned int tileSize = 8;
+            static const unsigned int TileRows = 32;
+            static const unsigned int TileCols = 32;
+            static const unsigned int TilePixSize = 8;
             static const unsigned int SPRITE_XPOS_ADJUST = 8;
             static const unsigned int SPRITE_YPOS_ADJUST = 16;
 
@@ -71,6 +75,8 @@ namespace GBonk
             uint32_t scrolly_;
             uint32_t wndposx_;
             uint32_t wndposy_;
+
+            std::array<unsigned int, 256*256> backgroundMap_;
         };
 
     }

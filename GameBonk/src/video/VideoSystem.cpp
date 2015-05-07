@@ -1,3 +1,5 @@
+#include <cstring>
+
 #include "MMU.hpp"
 #include "video/VideoSystem.hpp"
 
@@ -36,61 +38,14 @@ namespace GBonk
             windowTable_.setAddr(baseAddr + window_tile_table_addresses[lcdc_.wdwTileTableAddrMode]);
         }
 
-        /*
-        void VideoSystem::draw()
-        {
-            // std::vector<TilePattern> patterns;
-            // At most 40 spr + background + window
-            // patterns.reserve(40 + (32*32) * 2);
-            // loop through OAM
-            //  - priority sprites pushed front
-            //  - no priority sprites pushed back
-            // background and window in-between
-            // display the vector
-
-            if (lcdc_.backgroundDisplay)
-            {
-                uint32_t scrollx = this->scrollx_;
-                for (int i = 0; i < tiles; ++i)
-                {
-                    uint32_t scrolly = this->scrolly_;
-                    for (int j = 0; j < tiles; ++j)
-                    {
-                        unsigned int tile = backgroundTable_.tileId(i, j);
-                        // tilePattern = tilePatternTable_.get(tile);
-                        // draw tilePattern at (scrollx, scrolly)
-                        scrolly = (scrolly + tileSize) % height;
-                    }
-                    scrollx = (scrollx + tileSize) % width;
-                }
-            }
-
-            if (lcdc_.windowDisplay)
-            {
-                uint32_t wnpx = this->wndposx_;
-                for (int i = 0; i < tiles && wnpx < width; ++i)
-                {
-                    uint32_t wnpy = this->wndposy_;
-                    for (int j = 0; j < tiles && wnpy < height; ++j)
-                    {
-                        int tile = windowTable_.tileId(wnpx, wnpy);
-                        // tilePattern = tilePatternTable_.get(tile);
-                        // draw tilePattern at (scrollx, scrolly)
-                        wnpy += tileSize;
-                    }
-                    wnpx += tileSize;
-                }
-            }
-        }
-        */
-
         static inline bool _skipsprite(int x, int y)
         {
           return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
         }
 
-        void VideoSystem::draw()
+        void VideoSystem::drawline(int line)
         {
+          /*
           if (!lcdc_.lcdOp)
             return;
           // total number of tiles/sprites:
@@ -111,7 +66,7 @@ namespace GBonk
           for (int i = 0; i < 40; ++i)
           {
             ObjectAttribute& attr = spriteAttrMem_[i];
-            if (_skipsprite(attr.posx, attr.posy))
+            if (_skipsprite(line, attr.posx, attr.posy))
               continue;
             int index = attr.priority ? spritePrioCount[LOW_PRIO]++ : (spritePrioCount[HIGH_PRIO]++, high_prio_idx--);
             sprites[index] = spritePatternTable_.getSprite(attr.patternId, palettes_[attr.palette]);
@@ -123,11 +78,28 @@ namespace GBonk
               sprites[index].flipy();
             spritePrioCount[attr.priority]++;
           }
+          */
 
           unsigned int spritesBackgroundCount = 0;
           if (lcdc_.backgroundDisplay)
           {
+            if (line == 0)
+              buildBackground_();
 
+          }
+        }
+
+        void VideoSystem::buildBackground_()
+        {
+          for (int y = 0; y < TileRows; y++)
+          {
+            unsigned int line = y * TileRows * TilePixSize;
+            for (int x=  0; x < TileCols; x++)
+            {
+              unsigned int tileId = backgroundTable_.tileId(x, y);
+              Sprite s = tilePatternTable_.getSprite(tileId, palettes_[0]);
+              std::memcpy(&backgroundMap_[line + x*TilePixSize], &s[0], s.width() * s.height());
+            }
           }
         }
 

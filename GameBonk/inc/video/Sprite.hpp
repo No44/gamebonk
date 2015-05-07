@@ -29,6 +29,7 @@ namespace GBonk
         public:
             Sprite();
             Sprite(const uint32_t* mem, unsigned int width, unsigned int height);
+            Sprite(unsigned int width, unsigned int height);
             Sprite(Sprite&&);
             ~Sprite();
             Sprite& operator=(Sprite&&);

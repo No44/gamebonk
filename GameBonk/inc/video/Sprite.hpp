@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <array>
+#include <vector>
 
 namespace GBonk
 {
@@ -45,9 +46,10 @@ namespace GBonk
             uint32_t& operator[](int idx) { return pixels_[idx]; }
             uint32_t operator[](int idx) const { return pixels_[idx]; }
             uint32_t at(int x, int y) const;
+            void set(int x, int y, unsigned int value) { pixels_[y*w_ + x] = value; }
 
         private:
-            uint32_t* pixels_;
+            std::vector<uint32_t> pixels_;
             unsigned int w_;
             unsigned int h_;
         };

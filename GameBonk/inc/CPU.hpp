@@ -10,8 +10,8 @@
 
 #define REGPAIR(FIRST, SECOND) union { \
        struct {               \
-         uint8_t FIRST;       \
          uint8_t SECOND;      \
+         uint8_t FIRST;       \
        };                     \
        uint16_t  pair;        \
 } FIRST##SECOND               \
@@ -41,10 +41,10 @@ namespace GBonk
         };
         struct Registers
         {
-            REGPAIR(A,F);
-            REGPAIR(B,C);
-            REGPAIR(D,E);
-            REGPAIR(H,L);
+            REGPAIR(A, F);
+            REGPAIR(B, C);
+            REGPAIR(D, E);
+            REGPAIR(H, L);
             uint16_t sp;
             uint16_t pc;
         };
@@ -68,16 +68,16 @@ namespace GBonk
         Clock globalClock_;
 
         void run();
-        void halt();
-        void stop();
+        void halt() { }
+        void stop() { }
         // interrupts will be disabled after the next
         // instruction is ran
-        void prepareDisableInterrupts();
+        void prepareDisableInterrupts() {}
         // immediatly disable interrupts
         void disableInterrupts();
         // interrupts will be enabled after the next
         // instruction is ran
-        void prepareEnableInterrupts();
+        void prepareEnableInterrupts() {}
         // immediatly enable interrupts
         void enableInterrupts();
 

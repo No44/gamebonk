@@ -35,6 +35,7 @@ namespace GBonk
         contentSize_ =
             std::max<uint32_t>(GetFileSize(fileHandle, nullptr), MMU::TOTAL_ADDRESSABLE_MEMORY);
         content_ = new uint8_t[contentSize_];
+        std::memset(content_, 0, contentSize_);
         DWORD bytesRead = 0;
         ReadFile(fileHandle, content_, contentSize_, &bytesRead, nullptr);
         load_();
@@ -81,9 +82,9 @@ namespace GBonk
     uint16_t Cartridge::checksum()
     {
         uint32_t total = 0;
-        for (int i = 0; i < 0x14E; ++i)
+        for (unsigned int i = 0; i < 0x14E; ++i)
             total += content_[i];
-        for (unsigned int i = 0x14F + 1; i < contentSize_; ++i)
+        for (unsigned int i = 0x14F + 1; i < romSize_; ++i)
             total += content_[i];
         return total & 0xFFFF;
     }
@@ -92,8 +93,8 @@ namespace GBonk
     {
         uint32_t startAddr =
             *(uint32_t*)(content_ + 0x100);
-        startAddress_ = ((startAddr & 0xFF000000) >> 24)
-            | ((startAddr & 0xFF0000) >> 8);
+        startAddress_ = ((startAddr & 0xFF000000) >> 16)
+            | ((startAddr & 0xFF0000) >> 16);
 
         const void* cart_art = content_ + 0x104;
         assert(std::memcmp(nintendo_art, cart_art, sizeof(nintendo_art)) == 0);
@@ -151,6 +152,6 @@ namespace GBonk
             << "\tType:\t" << AMBC::typeToString(AMBC::Type(type_)) << std::endl
             << "\tRom size:\t" << romSize_ << std::endl
             << "\tRam size:\t" << ramSize_ << std::endl
-            << "\tTotal cartridge size:\t" << contentSize_;
+            << "\tTotal cartridge size:\t" << contentSize_ << std::endl;
     }
 }

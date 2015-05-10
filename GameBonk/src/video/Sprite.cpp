@@ -9,7 +9,7 @@ namespace GBonk
     {
 
         Sprite::Sprite()
-          :pixels_(nullptr),
+          : pixels_(),
             w_(0),
             h_(0)
         {
@@ -17,11 +17,22 @@ namespace GBonk
         }
 
         Sprite::Sprite(const uint32_t* mem, unsigned int w, unsigned int h)
-            : pixels_(new uint32_t[w * h]),
+            : pixels_(),
             w_(w),
             h_(h)
         {
-            std::memcpy(pixels_, mem, w*h*sizeof(*pixels_));
+            pixels_.resize(w * h);
+            std::memcpy(&pixels_[0], mem, w * h * sizeof(uint32_t));
+        }
+
+        Sprite::Sprite(unsigned int w, unsigned int h)
+            : pixels_(),
+            w_(w),
+            h_(h)
+        {
+            pixels_.resize(w*h);
+            for (unsigned int i = 0; i < w*h; ++i)
+                pixels_[i] = 0x000000FF;
         }
 
         Sprite::Sprite(Sprite&& s)
@@ -29,27 +40,26 @@ namespace GBonk
             w_(s.w_),
             h_(s.h_)
         {
-            s.pixels_ = nullptr;
+            s.pixels_ = std::vector<uint32_t>();
             s.w_ = 0;
             s.h_ = 0;
         }
 
         Sprite::~Sprite()
         {
-            delete[] pixels_;
-            pixels_ = nullptr;
+            pixels_.clear();
         }
 
         Sprite& Sprite::operator=(Sprite&& s)
         {
           if (&s == this)
-            return;
+            return *this;
           pixels_ = s.pixels_;
           w_ = s.w_;
           h_ = s.h_;
-          s.pixels_ = nullptr;
-          w_ = 0;
-          h_ = 0;
+          s.pixels_ = std::vector<uint32_t>();
+          s.w_ = 0;
+          s.h_ = 0;
           return *this;
         }
 
@@ -62,7 +72,7 @@ namespace GBonk
         {
           for (int y = 0; y <= h_; ++y)
           {
-            uint32_t* line = pixels_ + (y * w_);
+            uint32_t* line = &pixels_[y * w_];
             for (int i = 0, j = w_ - 1; i < j; ++i, --j)
               std::swap(line[i], line[j]);
           }
@@ -72,8 +82,8 @@ namespace GBonk
         {
           for (int i = 0, j = h_ - 1; i < j; ++i, --j)
           {
-            uint32_t* lowline = pixels_ + (i * w_);
-            uint32_t* highline = pixels_ + (j * w_);
+            uint32_t* lowline = &pixels_[i * w_];
+            uint32_t* highline = &pixels_[j * w_];
             for (int x = 0; x < w_; ++x)
               std::swap(lowline[x], highline[x]);
           }

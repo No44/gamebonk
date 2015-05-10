@@ -1,7 +1,11 @@
+#include <windows.h>
+
 #include <iostream>
 #include <iomanip>
 #include <map>
+#include <sstream>
 
+#include "video/Driver.hpp"
 #include "MMU.hpp"
 #include "CPU.hpp"
 #include "Cartridge.hpp"
@@ -23,22 +27,43 @@ namespace GBonk
 
     void CPU::run()
     {
+        // TODO: TEMP
+        Video::Driver d;
+
+        {
+            std::stringstream builder;
+            builder << "System memory base: 0x" << std::hex << (uint64_t)this->mmu_.memory() << std::endl;
+            builder << "Cartridge ROM: 0x" << std::hex << (uint64_t)game_->ROM() << std::endl;
+            OutputDebugString(builder.str().c_str());
+        }
+
+        d.openWindow();
+
         launchSequence_();
         mmu_.setMBC(GBonk::AMBC::makeMBC(*game_));
 
-        int counter = CPU::InterruptPeriod;
+        unsigned long long counter = 0;
         uint16_t& PC = registers_.pc;
 
-        for (;;)
+        while (d.pumpEvents() == false)
         {
+            std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
+            CPU::OpFormat f = runCurrentOp(*this);
+
+            registers_.pc += f.bytes;
+            counter += f.cycles;
+            
+            video_.cheatDrawAll();
+            d.render();
             // Read and run operation at PC
             // decrement COUNTER from the amount of
             // cycles the operation last
 
+            /*
             if (counter <= 0)
             {
                 // run interrupts
-                /*
+                
                 if runInterrupt:
                     if_ = true;
                     interruptMasterEnable_ = false;
@@ -46,11 +71,12 @@ namespace GBonk
                     writew(r.pc, r.sp);
                     r.pc = interrupt_start_address;
                 
-                */
+                
                 counter += CPU::InterruptPeriod;
                 // if (exitRequested)
                 // break;
             }
+            */
         }
     }
 
@@ -128,8 +154,10 @@ namespace GBonk
         registers_.HL.pair = 0x14D;
         registers_.sp = 0xFFFE;
 
-        mmu_.rawWrite(0, 0xFF05);
-        mmu_.rawWrite(0, 0xFF06);
+        // todo: set initial reg values
+        // can probably turn that to regular write and let CPU write handle REG writes
+        mmu_.rawWrite(0, 0xFF05); // TIMA
+        mmu_.rawWrite(0, 0xFF06); // TMA
         mmu_.rawWrite(0, 0xFF07);
         mmu_.rawWrite(0x80, 0xFF10);
         mmu_.rawWrite(0xBF, 0xFF11);
@@ -150,14 +178,19 @@ namespace GBonk
         mmu_.rawWrite(0xF3, 0xFF25);
         mmu_.rawWrite(0xF1, 0xFF26);
         mmu_.rawWrite(0x91, 0xFF40);
+        video_.setLCDC(0x91);
         mmu_.rawWrite(0x00, 0xFF42);
+        video_.scrolly = 0;
         mmu_.rawWrite(0x00, 0xFF43);
+        video_.scrollx = 0;
         mmu_.rawWrite(0x00, 0xFF45);
         mmu_.rawWrite(0xFC, 0xFF47);
         mmu_.rawWrite(0xFF, 0xFF48);
         mmu_.rawWrite(0xFF, 0xFF49);
         mmu_.rawWrite(0x00, 0xFF4A);
+        video_.wndposy = 0;
         mmu_.rawWrite(0x00, 0xFF4B);
+        video_.wndposx = 0;
         mmu_.rawWrite(0x00, 0xFFFF);
     }
 
@@ -188,12 +221,12 @@ namespace GBonk
 #define _OR(DST, SRC, LEN, CYCLES) {DST |= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
 #define _XOR(DST, SRC, LEN, CYCLES) {DST ^= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
 #define _CP(LH, RH, LEN, CYCLES) { int res = (LH) - (RH); FASSIGN(Z, !res); FSET(N); FASSIGN(H, !HBORROW(LH, res)); FASSIGN(C, LH < RH); return {CYCLES, LEN}; }
-#define _INC(DST, LEN, CYCLES) { int ini = DST; DST++; FASSIGN(Z, !DST); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN}; }
-#define _INCMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini + 1, DST); FASSIGN(Z, !(ini + 1)); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN};}
+#define _INC(DST, LEN, CYCLES) { uint8_t ini = DST; DST++; FASSIGN(Z, !DST); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN}; }
+#define _INCMEM(DST, LEN, CYCLES) { uint8_t ini = cpu.read(DST); cpu.write(ini + 1, DST); FASSIGN(Z, !(ini + 1)); FRESET(N); FASSIGN(H, _8BHCARRY(ini, 1)); return {CYCLES, LEN};}
 #define _DEC(DST, LEN, CYCLES) _SUB8(DST, 1, LEN, CYCLES)
 #define _DECMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini - 1, DST); FASSIGN(Z, !(ini - 1)); FSET(N); FASSIGN(H, !BORROW(ini, ini - 1)); return {CYCLES, LEN}; }
-#define _DECREG(DST, LEN, CYCLES) {DST++; return {CYCLES, LEN}; }
-#define _INCREG(DST, LEN, CYCLES) {DST--; return {CYCLES, LEN}; }
+#define _DECREG(DST, LEN, CYCLES) {DST--; return {CYCLES, LEN}; }
+#define _INCREG(DST, LEN, CYCLES) {DST++; return {CYCLES, LEN}; }
 #define _SWAP(DST, LEN, CYCLES) { DST = (((DST) & 0x0F) << 8) | (((DST) & 0xF0) >> 8); FASSIGN(Z, !(DST)); FRESET(N); FRESET(C); FRESET(H); return {CYCLES, LEN}; }
 #define _SWAPMEM(DST, LEN, CYCLES) { unsigned int val = cpu.read(DST); val = ((val & 0x0F) << 8) | ((val & 0xF0) >> 8); cpu.write(val, DST); FASSIGN(Z, !val); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
 #define _CPL(DST, LEN, CYCLES) { DST = ~DST; FSET(N); FSET(H); return {CYCLES, LEN}; }
@@ -201,7 +234,7 @@ namespace GBonk
 #define _SCF() { FSET(C); FRESET(N); FRESET(H); return {4, 1}; }
 #define _NOP() { return {4, 1}; }
 #define _HALT() { cpu.halt(); return {4, 1}; }
-#define _STOP() { cpu.stop(); return {4, 1}; }
+#define _STOP() { cpu.stop(); return {4, 2}; }
 #define _DI_() { cpu.prepareDisableInterrupts(); return{4, 1}; }
 #define _EI() { cpu.prepareEnableInterrupts(); return {4, 1}; }
 #define _RLC(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= lb; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
@@ -214,8 +247,8 @@ namespace GBonk
 #define _RRMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= (!!(r.AF.F & (unsigned int)CPU::Flags::C)) << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
 #define _SL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST &= ~1; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {4, 1}; }
 #define _SLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = (unsigned int)(v) >> 7; v <<= 1; v &= ~1; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {4, 1}; }
-#define _SRA(DST, LEN, CYCLES) {DST = (int)(DST) >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
-#define _SRAMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); v = (int)(v) >> 1; cpu.write(v, DST); uint32_t fb = (v) & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _SRA(DST, LEN, CYCLES) {DST = (int8_t)(DST) >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _SRAMEM(DST, LEN, CYCLES) {uint8_t v = cpu.read(DST); v = (int8_t)(v) >> 1; cpu.write(v, DST); uint32_t fb = (v) & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _SRL(DST, LEN, CYCLES) { DST = (unsigned int)DST >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _SRLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); v >>= 1; cpu.write(v, DST); uint32_t fb = v & 1; FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
 #define _BIT(DST, B, LEN, CYCLES) { FASSIGN(Z, !((DST) & (1 << B))); FRESET(N); FSET(H); return {CYCLES, LEN}; }
@@ -225,17 +258,17 @@ namespace GBonk
 #define _RES(DST, B, LEN, CYCLES) { DST &= ~(1 << B); return {CYCLES, LEN}; }
 #define _RESMEM(DST, B, LEN, CYCLES) { uint32_t v = cpu.read(DST); v &= ~(1 << B); cpu.write(v, DST); return {CYCLES, LEN};}
 #define _JP() { uint32_t addr = cpu.readw(r.pc + 1); r.pc = addr; return {12, 0}; }
-#define _JPNZ() { if (FISSET(Z)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
-#define _JPZ() { if (!FISSET(Z)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
-#define _JPNC() { if (FISSET(C)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
-#define _JPC() { if (!FISSET(C)) return {12, 3}; r.pc = cpu.readw(r.pc + 1); return {12, 0}; }
+#define _JPNZ() { if (FISSET(Z)) return {12, 3}; _JP() }
+#define _JPZ() { if (!FISSET(Z)) return {12, 3}; _JP() }
+#define _JPNC() { if (FISSET(C)) return {12, 3}; _JP() }
+#define _JPC() { if (!FISSET(C)) return {12, 3}; _JP() }
 #define _JPHL() { r.pc = r.HL.pair; return {4, 0}; }
-#define _JR() { int val = (int)cpu.read(r.pc + 1); r.pc += val; return {8, 0}; }
+#define _JR() { int val = (int8_t)cpu.read(r.pc + 1); r.pc += val; return {8, 2}; } // todo : vraiment garder le +2 ?
 #define _JRNZ() { if (FISSET(Z)) return {8, 2}; _JR() }
 #define _JRZ() { if (!FISSET(Z)) return {8, 2}; _JR() }
 #define _JRNC() { if (FISSET(C)) return {8, 2}; _JR() }
 #define _JRC() { if (!FISSET(C)) return {8, 2}; _JR() }
-#define _CALL() { uint32_t nextIns = r.pc + 3; cpu.writew(nextIns, --r.sp); _JP() }
+#define _CALL() { uint32_t nextIns = r.pc + 3; r.sp -= 2; cpu.writew(nextIns, r.sp); _JP() }
 #define _CALLNZ() { if (FISSET(Z)) return {12, 3}; _CALL() }
 #define _CALLZ() { if (!FISSET(Z)) return {12, 3}; _CALL() }
 #define _CALLNC() { if (FISSET(C)) return {12, 3}; _CALL() }
@@ -516,6 +549,13 @@ namespace GBonk
       case 0xC4: _SET(r.HL.H, 0, 2, 8);
       case 0xC5: _SET(r.HL.L, 0, 2, 8);
       case 0xC6: _SETMEM((r.HL.pair), 0, 2, 16);
+      case 0xCC: _SET(r.HL.H, 1, 2, 8);
+      case 0xD0: _SET(r.BC.B, 2, 2, 8);
+      case 0xD8: _SET(r.BC.B, 3, 2, 8);
+      case 0xF0: _SET(r.BC.B, 6, 2, 8);
+      case 0xF8: _SET(r.BC.B, 7, 2, 8);
+      case 0xDE: _SETMEM((r.HL.pair), 7, 3, 16);
+      case 0xFE: _SETMEM((r.HL.pair), 7, 2, 16);
       case 0x87: _RES(r.AF.A, 0, 2, 8);
       case 0x80: _RES(r.BC.B, 0, 2, 8);
       case 0x81: _RES(r.BC.C, 0, 2, 8);
@@ -523,7 +563,9 @@ namespace GBonk
       case 0x83: _RES(r.DE.E, 0, 2, 8);
       case 0x84: _RES(r.HL.H, 0, 2, 8);
       case 0x85: _RES(r.HL.L, 0, 2, 8);
-      case 0x86: _RESMEM((r.HL.pair), 0, 2, 8);
+      case 0x86: _RESMEM((r.HL.pair), 0, 2, 16);
+      case 0x9E: _RESMEM((r.HL.pair), 3, 2, 16);
+      case 0xBE: _RESMEM((r.HL.pair), 7, 2, 16);
       default:
           std::cerr << "Uninplemented CB op: " << std::hex << op << std::endl;
           abort();
@@ -628,7 +670,7 @@ namespace GBonk
       case 0x02: _8BLDMEM((r.BC.pair), r.AF.A, 1, 8);
       case 0x12: _8BLDMEM((r.DE.pair), r.AF.A, 1, 8);
       case 0x77: _8BLDMEM((r.HL.pair), r.AF.A, 1, 8);
-      case 0xEA: _8BLDMEM((cpu.readw(r.pc+1)), r.AF.A, 3, 16);
+      case 0xEA: _8BLDMEM((cpu.readw(r.pc + 1)), r.AF.A, 3, 16);
       case 0xF2: _LD(r.AF.A, cpu.read(0xFF00 + r.BC.C), 1, 8);
       case 0xE2: _8BLDMEM((0xFF00 + r.BC.C), r.AF.A, 1, 8);
       case 0x3A: _LD(r.AF.A, cpu.read(r.HL.pair--), 1, 8);
@@ -643,16 +685,16 @@ namespace GBonk
       case 0x31: _LD(r.sp, cpu.readw(r.pc + 1), 3, 12);
       case 0xF9: _LD(r.sp, r.HL.pair, 1, 8);
       case 0xF8: {
-        FRESET(Z);
-        FRESET(N);
-        unsigned int op = r.sp;
-        int rh = (int)cpu.read(r.pc + 1);
-        FASSIGN(H, _8BHCARRY(op, rh));
-        FASSIGN(C, _8BCARRY(op, rh));
-        _LD(r.HL.pair, op + rh, 2, 12);
+          FRESET(Z);
+          FRESET(N);
+          unsigned int op = r.sp;
+          int rh = (int8_t)cpu.read(r.pc + 1);
+          FASSIGN(H, _8BHCARRY(op, rh));
+          FASSIGN(C, _8BCARRY(op, rh));
+          _LD(r.HL.pair, op + rh, 2, 12);
       }
       case 0x08: _8BLDMEM((cpu.readw(r.pc + 1)), r.sp, 3, 20);
-      // conflit sur les 4 en dessous: verifier
+          // conflit sur les 4 en dessous: verifier
       case 0xF5: _PUSH16(r.AF.pair, 1, 16);
       case 0xC5: _PUSH16(r.BC.pair, 1, 16);
       case 0xD5: _PUSH16(r.DE.pair, 1, 16);
@@ -696,6 +738,7 @@ namespace GBonk
       case 0x9C: _SUB8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x9D: _SUB8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL.pair) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
+      case 0xDE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
       case 0xA7: _AND(r.AF.A, r.AF.A, 1, 4);
       case 0xA0: _AND(r.AF.A, r.BC.B, 1, 4);
       case 0xA1: _AND(r.AF.A, r.BC.C, 1, 4);
@@ -766,9 +809,13 @@ namespace GBonk
       case 0x2F: _CPL(r.AF.A, 1, 4);
       case 0x3F: _CCF();
       case 0x37: _SCF();
-      case 0x00: _NOP();
+      case 0x00: case 0xE4: case 0xEC:
+      case 0xF4: case 0xFC: case 0xFD:
+      case 0xEB: case 0xDD: case 0xE3:
+      case 0xED: case 0xDB: case 0xD3:
+          _NOP();
       case 0x76: _HALT();
-      case 0x10: return gbOp(cpu, r);
+      case 0x10: _STOP();
       case 0xF3: _DI_();
       case 0xFB: _EI();
       case 0x07: _RLC(r.AF.A, 1, 4);

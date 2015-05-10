@@ -82,10 +82,13 @@
       <WarningLevel>Level3</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>C:\Users\Nbr44\Documents\Projects\GameBonk\GameBonk\inc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>C:\Users\Nbr44\Documents\Projects\GameBonk\GameBonk\inc;C:\Users\Nbr44\Documents\Libraries\SDL2-2.0.3\SDL2-2.0.3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>C:\Users\Nbr44\Documents\Libraries\SDL2-2.0.3\SDL2-2.0.3\lib\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>SDL2.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <SubSystem>Console</SubSystem>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -123,6 +126,7 @@
     <ClCompile Include="src\CPU.cpp" />
     <ClCompile Include="src\MemoryBankController1.cpp" />
     <ClCompile Include="src\MMU.cpp" />
+    <ClCompile Include="src\video\Driver.cpp" />
     <ClCompile Include="src\video\Sprite.cpp" />
     <ClCompile Include="src\video\TilePatternTable.cpp" />
     <ClCompile Include="src\video\TileTable.cpp" />

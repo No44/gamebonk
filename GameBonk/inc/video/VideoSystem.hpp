@@ -4,6 +4,7 @@
 #include <array>
 #include <cstdint>
 
+#include "video/Driver.hpp"
 #include "video/TilePatternTable.hpp"
 #include "video/TileTable.hpp"
 #include "video/Sprite.hpp"
@@ -21,23 +22,24 @@ namespace GBonk
         public:
             VideoSystem(uint8_t* vram, uint8_t* spriteAttribMemory);
 
-            enum Transparency
-            {
-                SOLID,
-                TRANSPARENT,
-            };
-           
+            uint8_t scrollx;
+            uint8_t scrolly;
+            uint8_t wndposx;
+            uint8_t wndposy;
 
             void setLCDC(uint32_t val);
+
+            void cheatDrawAll();
             void drawline(int line);
+
+            static const unsigned int ScreenWidth = 160;
+            static const unsigned int ScreenHeight = 144;
 
         private:
             void buildBackground_();
 
             static const unsigned int fbwidth = 256;
             static const unsigned int fbheight = 256;
-            static const unsigned int width = 160;
-            static const unsigned int height = 144;
             static const unsigned int TileRows = 32;
             static const unsigned int TileCols = 32;
             static const unsigned int TilePixSize = 8;
@@ -46,6 +48,8 @@ namespace GBonk
 
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00
+
+            Driver driver_;
 
             union LCDC {
                 struct {
@@ -70,11 +74,6 @@ namespace GBonk
             TileTable        windowTable_;
 
             Palette palettes_[2];
-
-            uint32_t scrollx_;
-            uint32_t scrolly_;
-            uint32_t wndposx_;
-            uint32_t wndposy_;
 
             std::array<unsigned int, 256*256> backgroundMap_;
         };

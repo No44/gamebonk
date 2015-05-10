@@ -13,6 +13,15 @@ namespace GBonk
             spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(s))
         {
             spritePatternTable_.setAddr(v - MMU::VIDEO_RAM, 0x8000);
+            palettes_[0][0] = 0xFF0000FF;
+            palettes_[0][1] = 0x00FF00FF;
+            palettes_[0][2] = 0x0000FFFF;
+            palettes_[0][3] = 0xFFFF00FF;
+
+            palettes_[1][0] = 0xFFFFF0FF;
+            palettes_[1][1] = 0xF0FF0FFF;
+            palettes_[1][2] = 0x0F0F0FFF;
+            palettes_[1][3] = 0xFF00FFFF;
         }
 
         static const uint32_t background_tile_table_addresses[] = {
@@ -43,8 +52,17 @@ namespace GBonk
           return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
         }
 
+        void VideoSystem::cheatDrawAll()
+        {
+            for (int i = 0; i < ScreenHeight; ++i)
+                drawline(i);
+        }
+
         void VideoSystem::drawline(int line)
         {
+            Sprite result(ScreenWidth, 1);
+            result.x = 0;
+            result.y = line;
           /*
           if (!lcdc_.lcdOp)
             return;
@@ -85,15 +103,25 @@ namespace GBonk
           {
             if (line == 0)
               buildBackground_();
-
+            
+            int bckgrd_y = (scrolly + line) % ScreenHeight;
+            int bckgrd_x = scrollx;
+            unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
+            for (unsigned int i = 0; i < ScreenWidth; ++i)
+            {
+                unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
+                if (pixel != 0x000000FF)
+                    result.set(i, 0, pixel);
+            }
           }
+          driver_.draw(result);
         }
 
         void VideoSystem::buildBackground_()
         {
           for (int y = 0; y < TileRows; y++)
           {
-            unsigned int line = y * TileRows * TilePixSize;
+            unsigned int line = y * fbwidth;
             for (int x=  0; x < TileCols; x++)
             {
               unsigned int tileId = backgroundTable_.tileId(x, y);

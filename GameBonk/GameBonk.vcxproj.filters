@@ -83,5 +83,8 @@
     <ClInclude Include="inc\video\Sprite.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="inc\Disassembler.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

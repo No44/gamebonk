@@ -98,6 +98,7 @@ namespace GBonk
         MMU mmu_;
         Video::VideoSystem video_;
         Cartridge* game_;
+        friend class Disassembler;
     };
 
 }

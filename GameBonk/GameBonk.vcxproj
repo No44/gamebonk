@@ -136,6 +136,7 @@
     <ClInclude Include="inc\AMemoryBankController.hpp" />
     <ClInclude Include="inc\Cartridge.hpp" />
     <ClInclude Include="inc\CPU.hpp" />
+    <ClInclude Include="inc\Disassembler.hpp" />
     <ClInclude Include="inc\IORegistersRepository.hpp" />
     <ClInclude Include="inc\MemoryBankController1.hpp" />
     <ClInclude Include="inc\MMU.hpp" />

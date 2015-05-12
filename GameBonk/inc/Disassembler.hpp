@@ -12,6 +12,10 @@ namespace GBonk
         Disassembler(CPU&);
 
         void step();
+
+
+    private:
+        CPU& cpu_;
     };
 
 }

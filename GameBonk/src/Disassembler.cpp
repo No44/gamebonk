@@ -1,3 +1,4 @@
+/*
 #include <fltk/run.h>
 #include <fltk/Window.h>
 #include <fltk/Slider.h>
@@ -8,3 +9,4 @@
 class DisassemblerWindow : public fltk::Window
 {
 };
+*/

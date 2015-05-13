@@ -30,3 +30,9 @@ add_executable(GameBonk
   GameBonk/src/video/TileTable.cpp
   GameBonk/src/AMemoryBankController.cpp
   GameBonk/main.cpp)
+
+set(GCC_COVERAGE_COMPILE_FLAGS "-std=gnu++11")
+add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
+
+include_directories(${SDL2_INCLUDE_DIRS})
+target_link_libraries(GameBonk ${SDL2_LIBRARIES})

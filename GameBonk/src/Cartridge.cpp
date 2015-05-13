@@ -1,5 +1,13 @@
+#if defined _WIN32 || defined _WIN64
 #define NOMINMAX
 #include <Windows.h>
+#else
+#include <sys/stat.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cstring>
+#endif
+
 
 #include <iostream>
 #include <exception>
@@ -23,6 +31,7 @@ namespace GBonk
         close();
     }
 
+#if defined _WIN32 || defined _WIN64
     void Cartridge::openFile(const std::string& file)
     {
         HANDLE fileHandle =
@@ -38,10 +47,35 @@ namespace GBonk
         std::memset(content_, 0, contentSize_);
         DWORD bytesRead = 0;
         ReadFile(fileHandle, content_, contentSize_, &bytesRead, nullptr);
-        load_();
-
         CloseHandle(fileHandle);
+        load_();
     }
+#else
+    void Cartridge::openFile(const std::string &game)
+    {
+      int fd = open(game.c_str(), O_RDONLY);
+      if (fd == -1)
+        throw std::runtime_error(strerror(errno));
+
+      struct stat buf;
+      int st = fstat(fd, &buf);
+      if (st == -1)
+      {
+        ::close(fd);
+        throw std::runtime_error(strerror(errno));
+      }
+
+      // todo: probablement pas necessaire
+      contentSize_ = std::max<uint32_t>(buf.st_size, MMU::TOTAL_ADDRESSABLE_MEMORY);
+      content_ = new uint8_t[contentSize_];
+      std::memset(content_, 0, contentSize_);
+      ssize_t bytesRead = ::read(fd, content_, contentSize_);
+      ::close(fd);
+
+      load_();
+    }
+
+#endif
 
     void Cartridge::loadContent(const uint8_t* c, uint32_t s)
     {

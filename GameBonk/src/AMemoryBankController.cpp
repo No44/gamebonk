@@ -1,4 +1,7 @@
+#include <cstring>
+#include <string>
 #include <exception>
+#include <stdexcept>
 
 #include "AMemoryBankController.hpp"
 #include "MemoryBankController1.hpp"
@@ -38,7 +41,7 @@ namespace GBonk
       case AMBC::Type_ROM_MBC1_RAM_BATT:
           return new MBC1(c);
       default:
-        throw std::exception("Not implemented");
+        throw std::runtime_error("Not implemented");
       }
         return nullptr;
     }

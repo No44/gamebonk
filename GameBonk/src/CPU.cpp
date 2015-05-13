@@ -1,4 +1,7 @@
+#if defined _WIN32 || _WIN64
 #include <windows.h>
+#endif
+
 
 #include <iostream>
 #include <iomanip>
@@ -9,6 +12,15 @@
 #include "MMU.hpp"
 #include "CPU.hpp"
 #include "Cartridge.hpp"
+
+#ifndef _WIN32
+
+void OutputDebugString(const std::string& str)
+{
+  std::cerr << str << std::endl;
+}
+
+#endif
 
 namespace GBonk
 {
@@ -586,7 +598,7 @@ namespace GBonk
         return{ 4, 2 }; // todo: ?
     }
 
-    static CPU::OpFormat runCurrentOp(CPU& cpu)
+    CPU::OpFormat runCurrentOp(CPU& cpu)
     {
       CPU::Registers& r = cpu.registers_;
       MMU& mmu = cpu.mmu_;

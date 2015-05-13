@@ -1,3 +1,4 @@
+#include <cstring>
 #include "MMU.hpp"
 
 namespace GBonk

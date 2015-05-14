@@ -1,5 +1,5 @@
-#ifndef _GBONK_DISASSEMBLER_HPP_
-#define _GBONK_DISASSEMBLER_HPP_
+#ifndef _GBONK_DEBUGGER_HPP_
+#define _GBONK_DEBUGGER_HPP_
 
 namespace GBonk
 {

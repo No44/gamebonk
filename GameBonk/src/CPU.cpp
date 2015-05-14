@@ -56,7 +56,7 @@ namespace GBonk
 
         unsigned long long counter = 0;
         uint16_t& PC = registers_.pc;
-
+        bool render = false;
         while (d.pumpEvents() == false)
         {
             std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
@@ -66,7 +66,8 @@ namespace GBonk
             counter += f.cycles;
             
             video_.cheatDrawAll();
-            d.render();
+            if (render)
+                d.render();
             // Read and run operation at PC
             // decrement COUNTER from the amount of
             // cycles the operation last

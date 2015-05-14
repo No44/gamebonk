@@ -12,7 +12,7 @@ add_executable(GameBonk
   GameBonk/inc/video/TileTable.hpp
   GameBonk/inc/video/Sprite.hpp
   GameBonk/inc/MMU.hpp
-  GameBonk/inc/Disassembler.hpp
+  GameBonk/inc/Debugger.hpp
   GameBonk/inc/AMemoryBankController.hpp
   GameBonk/inc/IORegistersRepository.hpp
   GameBonk/inc/CPU.hpp
@@ -23,7 +23,7 @@ add_executable(GameBonk
   GameBonk/src/MemoryBankController1.cpp
   GameBonk/src/MMU.cpp
   GameBonk/src/Cartridge.cpp
-  GameBonk/src/Disassembler.cpp
+  GameBonk/src/Debugger.cpp
   GameBonk/src/video/VideoSystem.cpp
   GameBonk/src/video/Sprite.cpp
   GameBonk/src/video/TilePatternTable.cpp

@@ -8,11 +8,18 @@ namespace GBonk
     namespace Video
     {
 
-        VideoSystem::VideoSystem(uint8_t* v, uint8_t* s)
-            : vram_(v),
-            spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(s))
+        VideoSystem::VideoSystem(uint8_t* m)
+            : baseMem_(m),
+            vram_(m + MMU::VIDEO_RAM),
+            spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(m + MMU::SPRITE_ATTRIB_MEMORY)),
+            lcdc_(reinterpret_cast<LCDC*>(m + 0xFF40)),
+            SCY_(m + 0xFF42),
+            SCX_(m + 0xFF43),
+            WY_(m + 0xFF4A),
+            WX_(m + 0xFF4B),
+            LYC_(m + 0xFF45)
         {
-            spritePatternTable_.setAddr(v - MMU::VIDEO_RAM, 0x8000);
+            spritePatternTable_.setAddr(m, 0x8000);
             palettes_[0][0] = 0xFF0000FF;
             palettes_[0][1] = 0x00FF00FF;
             palettes_[0][2] = 0x0000FFFF;
@@ -37,14 +44,11 @@ namespace GBonk
             0x8000,
         };
 
-        void VideoSystem::setLCDC(uint32_t val)
+        void VideoSystem::updateLCDC()
         {
-            uint8_t* baseAddr = vram_ - MMU::VIDEO_RAM;
-            
-            lcdc_.value = val;
-            tilePatternTable_.setAddr(baseAddr, tile_pattern_table_addresses[lcdc_.tilePttrnAddrMode]);
-            backgroundTable_.setAddr(baseAddr + background_tile_table_addresses[lcdc_.bckgrdTileTableAddrMode]);
-            windowTable_.setAddr(baseAddr + window_tile_table_addresses[lcdc_.wdwTileTableAddrMode]);
+            tilePatternTable_.setAddr(baseMem_, tile_pattern_table_addresses[lcdc_->tilePttrnAddrMode]);
+            backgroundTable_.setAddr(baseMem_ + background_tile_table_addresses[lcdc_->bckgrdTileTableAddrMode]);
+            windowTable_.setAddr(baseMem_ + window_tile_table_addresses[lcdc_->wdwTileTableAddrMode]);
         }
 
         static inline bool _skipsprite(int x, int y)
@@ -99,13 +103,13 @@ namespace GBonk
           */
 
           unsigned int spritesBackgroundCount = 0;
-          if (lcdc_.backgroundDisplay)
+          if (lcdc_->backgroundDisplay)
           {
             if (line == 0)
               buildBackground_();
             
-            int bckgrd_y = (scrolly + line) % ScreenHeight;
-            int bckgrd_x = scrollx;
+            int bckgrd_y = (*SCY_ + line) % ScreenHeight;
+            int bckgrd_x = *SCX_;
             unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
             for (unsigned int i = 0; i < ScreenWidth; ++i)
             {

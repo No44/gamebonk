@@ -83,6 +83,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>C:\Users\Nbr44\Documents\Projects\GameBonk\GameBonk\inc;C:\Users\Nbr44\Documents\Libraries\SDL2-2.0.3\SDL2-2.0.3\include;C:\Users\Nbr44\Documents\Libraries\fltk-1.3.3\fltk-1.3.3\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;WIN64;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -124,8 +125,10 @@
     <ClCompile Include="src\AMemoryBankController.cpp" />
     <ClCompile Include="src\Cartridge.cpp" />
     <ClCompile Include="src\CPU.cpp" />
-    <ClCompile Include="src\Debugger.cpp" />
-    <ClCompile Include="src\DebuggerHost.cpp" />
+    <ClCompile Include="src\debug\Debugger.cpp" />
+    <ClCompile Include="src\debug\DebuggerHost.cpp" />
+    <ClCompile Include="src\debug\Instruction.cpp" />
+    <ClCompile Include="src\debug\MemoryDumper.cpp" />
     <ClCompile Include="src\MemoryBankController1.cpp" />
     <ClCompile Include="src\MMU.cpp" />
     <ClCompile Include="src\video\Driver.cpp" />
@@ -138,8 +141,10 @@
     <ClInclude Include="inc\AMemoryBankController.hpp" />
     <ClInclude Include="inc\Cartridge.hpp" />
     <ClInclude Include="inc\CPU.hpp" />
-    <ClInclude Include="inc\Debugger.hpp" />
-    <ClInclude Include="inc\DebuggerHost.hpp" />
+    <ClInclude Include="inc\debug\Debugger.hpp" />
+    <ClInclude Include="inc\debug\DebuggerHost.hpp" />
+    <ClInclude Include="inc\debug\Instruction.hpp" />
+    <ClInclude Include="inc\debug\MemoryDumper.hpp" />
     <ClInclude Include="inc\Disassembler.hpp" />
     <ClInclude Include="inc\IORegistersRepository.hpp" />
     <ClInclude Include="inc\MemoryBankController1.hpp" />

@@ -20,14 +20,9 @@ namespace GBonk
         class VideoSystem
         {
         public:
-            VideoSystem(uint8_t* vram, uint8_t* spriteAttribMemory);
+            VideoSystem(uint8_t* baseMem);
 
-            uint8_t scrollx;
-            uint8_t scrolly;
-            uint8_t wndposx;
-            uint8_t wndposy;
-
-            void setLCDC(uint32_t val);
+            void updateLCDC();
 
             void cheatDrawAll();
             void drawline(int line);
@@ -46,6 +41,7 @@ namespace GBonk
             static const unsigned int SPRITE_XPOS_ADJUST = 8;
             static const unsigned int SPRITE_YPOS_ADJUST = 16;
 
+            uint8_t* baseMem_;
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00
 
@@ -64,7 +60,12 @@ namespace GBonk
                 };
                 uint8_t value;
             };
-            LCDC lcdc_;
+            LCDC* lcdc_;
+            uint8_t* SCY_;
+            uint8_t* SCX_;
+            uint8_t* WX_;
+            uint8_t* WY_;
+            uint8_t* LYC_;
 
             // AKA TileDataTable
             TilePatternTable spritePatternTable_;

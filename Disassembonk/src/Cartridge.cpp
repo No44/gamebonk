@@ -31,22 +31,20 @@ namespace GBonk
         if (fileHandle == INVALID_HANDLE_VALUE)
             throw std::runtime_error(file);
 
-        contentSize_ =
-            std::max<uint32_t>(GetFileSize(fileHandle, nullptr), 0xFFFF);
-        content_ = new uint8_t[contentSize_];
-        std::memset(content_, 0, contentSize_);
+        unsigned int contentSize = GetFileSize(fileHandle, nullptr);
+        content_ = new uint8_t[contentSize];
+        std::memset(content_, 0, contentSize);
         DWORD bytesRead = 0;
-        ReadFile(fileHandle, content_, contentSize_, &bytesRead, nullptr);
-        load_();
-
+        ReadFile(fileHandle, content_, contentSize, &bytesRead, nullptr);
         CloseHandle(fileHandle);
+
+        load_();
     }
 
     void Cartridge::loadContent(const uint8_t* c, uint32_t s)
     {
         close();
-        contentSize_ = std::max(s, 0xFFFFu);
-        content_ = new uint8_t[contentSize_];
+        content_ = new uint8_t[s];
         std::memcpy(content_, c, s);
         load_();
     }
@@ -149,7 +147,6 @@ namespace GBonk
             << "\tManufacturer:\t" << ManufacturerToString(manufacturer_) << std::endl
             << "\tVersion:\t" << version_ << std::endl
             << "\tRom size:\t" << romSize_ << std::endl
-            << "\tRam size:\t" << ramSize_ << std::endl
-            << "\tTotal cartridge size:\t" << contentSize_ << std::endl;
+            << "\tRam size:\t" << ramSize_ << std::endl;
     }
 }

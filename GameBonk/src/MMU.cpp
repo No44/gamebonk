@@ -43,7 +43,6 @@ namespace GBonk
                 systemMem_[addr + 0x2000] = value;
             return;
         default:
-            // todo: a garder ?
             systemMem_[addr] = value;
             return;
         };

@@ -9,6 +9,7 @@
 #include <sstream>
 
 #include "video/Driver.hpp"
+#include "debug/Instruction.hpp"
 #include "MMU.hpp"
 #include "CPU.hpp"
 #include "Cartridge.hpp"
@@ -28,7 +29,7 @@ namespace GBonk
     CPU::CPU()
         : interruptMasterEnable_(true),
         interruptsEnabled_(0),
-        video_(mmu_.memory() + MMU::VIDEO_RAM, mmu_.memory() + MMU::SPRITE_ATTRIB_MEMORY)
+        video_(mmu_.memory())
     {
     }
 
@@ -59,7 +60,12 @@ namespace GBonk
         bool render = false;
         while (d.pumpEvents() == false)
         {
-            std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
+            //std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
+            {
+                Debug::Instruction instr(game_->ROM() + registers_.pc, registers_.pc);
+                std::cout << "[0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex << registers_.pc << "]";
+                std::cout << instr.toString() << std::endl;
+            }
             CPU::OpFormat f = runCurrentOp(*this);
 
             registers_.pc += f.bytes;
@@ -93,39 +99,55 @@ namespace GBonk
         }
     }
 
+    void CPU::interrupt(InterruptId i)
+    {
+        registers_.sp -= 2;
+        writew(registers_.pc, registers_.sp);
+        registers_.pc = static_cast<uint32_t>(i);
+    }
+
     unsigned int CPU::read(uint32_t addr)
     {
-        // todo: ports ?
         return mmu_.read(addr);
     }
 
     unsigned int CPU::readw(uint32_t addr)
     {
-        // todo: ports ?
         return mmu_.readw(addr);
+    }
+
+    void CPU::ioregWrite(unsigned int& value, uint32_t addr)
+    {
+        switch (addr & 0xFF)
+        {
+        case 0x00:
+            // Joypad
+            break;
+        case 0x04:
+            // DIV
+            value = 0;
+            break;
+        case 0x05:
+            // TIMA
+            break;
+        case 0x06:
+            // TMA
+            break;
+        case 0x40:
+            video_.updateLCDC();
+            break;
+        };
     }
 
     void CPU::writew(unsigned int value, uint32_t addr)
     {
-        switch (addr & 0xF000)
+        switch (addr & 0xFF00)
         {
-        case 0xF000:
-            // IO Ports
-            switch (addr & 0xF00)
-            {
-            case 0xF00:
-                switch (addr & 0xFF)
-                {
-                case 0x00:
-                    // Joypad
-                    break;
-                case 0x40:
-                    video_.setLCDC(value);
-                    break;
-                };
-            default:
-                break;
-            };
+        case 0xFF00:
+            ioregWrite(value, addr & 0xFF);
+            ioregWrite(value, (addr & 0xFF) + 1);
+            break;
+        default:
             break;
         }
         mmu_.writew(value, addr);
@@ -133,78 +155,60 @@ namespace GBonk
 
     void CPU::write(unsigned int value, uint32_t addr)
     {
-        switch (addr & 0xF000)
+        switch (addr & 0xFF00)
         {
-        case 0xF000:
-            // IO Ports
-            switch (addr & 0xF00)
-            {
-            case 0xF00:
-                switch (addr & 0xFF)
-                {
-                case 0x00:
-                    // Joypad
-                    break;
-                case 0x40:
-                    video_.setLCDC(value);
-                    break;
-                };
-            default:
-                break;
-            };
+        case 0xFF00:
+            ioregWrite(value, addr & 0xFF);
             break;
-        };
+        default:
+            break;
+        }
         mmu_.write(value, addr);
     }
 
     void CPU::launchSequence_()
     {
         registers_.pc = 0x100;
-        registers_.AF.pair = 1;
+        registers_.AF = 1;
         registers_.AF.F = 0xB0;
-        registers_.BC.pair = 0x13;
-        registers_.DE.pair = 0xD8;
-        registers_.HL.pair = 0x14D;
+        registers_.BC = 0x13;
+        registers_.DE = 0xD8;
+        registers_.HL = 0x14D;
         registers_.sp = 0xFFFE;
 
-        // todo: set initial reg values
         // can probably turn that to regular write and let CPU write handle REG writes
-        mmu_.rawWrite(0, 0xFF05); // TIMA
-        mmu_.rawWrite(0, 0xFF06); // TMA
-        mmu_.rawWrite(0, 0xFF07);
-        mmu_.rawWrite(0x80, 0xFF10);
-        mmu_.rawWrite(0xBF, 0xFF11);
-        mmu_.rawWrite(0xF3, 0xFF12);
-        mmu_.rawWrite(0xBF, 0xFF14);
-        mmu_.rawWrite(0x3F, 0xFF16);
-        mmu_.rawWrite(0x00, 0xFF17);
-        mmu_.rawWrite(0xBF, 0xFF19);
-        mmu_.rawWrite(0x7F, 0xFF1A);
-        mmu_.rawWrite(0xFF, 0xFF1B);
-        mmu_.rawWrite(0x9F, 0xFF1C);
-        mmu_.rawWrite(0xBF, 0xFF1E);
-        mmu_.rawWrite(0xFF, 0xFF20);
-        mmu_.rawWrite(0x00, 0xFF21);
-        mmu_.rawWrite(0x00, 0xFF22);
-        mmu_.rawWrite(0xBF, 0xFF23);
-        mmu_.rawWrite(0x77, 0xFF24);
-        mmu_.rawWrite(0xF3, 0xFF25);
-        mmu_.rawWrite(0xF1, 0xFF26);
-        mmu_.rawWrite(0x91, 0xFF40);
-        video_.setLCDC(0x91);
-        mmu_.rawWrite(0x00, 0xFF42);
-        video_.scrolly = 0;
-        mmu_.rawWrite(0x00, 0xFF43);
-        video_.scrollx = 0;
-        mmu_.rawWrite(0x00, 0xFF45);
-        mmu_.rawWrite(0xFC, 0xFF47);
-        mmu_.rawWrite(0xFF, 0xFF48);
-        mmu_.rawWrite(0xFF, 0xFF49);
-        mmu_.rawWrite(0x00, 0xFF4A);
-        video_.wndposy = 0;
-        mmu_.rawWrite(0x00, 0xFF4B);
-        video_.wndposx = 0;
-        mmu_.rawWrite(0x00, 0xFFFF);
+        write(0, 0xFF05); // TIMA
+        write(0, 0xFF06); // TMA
+        write(0, 0xFF07);
+        write(0x80, 0xFF10);
+        write(0xBF, 0xFF11);
+        write(0xF3, 0xFF12);
+        write(0xBF, 0xFF14);
+        write(0x3F, 0xFF16);
+        write(0x00, 0xFF17);
+        write(0xBF, 0xFF19);
+        write(0x7F, 0xFF1A);
+        write(0xFF, 0xFF1B);
+        write(0x9F, 0xFF1C);
+        write(0xBF, 0xFF1E);
+        write(0xFF, 0xFF20);
+        write(0x00, 0xFF21);
+        write(0x00, 0xFF22);
+        write(0xBF, 0xFF23);
+        write(0x77, 0xFF24);
+        write(0xF3, 0xFF25);
+        write(0xF1, 0xFF26);
+        write(0x91, 0xFF40);
+        video_.updateLCDC();
+        write(0x00, 0xFF42);
+        write(0x00, 0xFF43);
+        write(0x00, 0xFF45);
+        write(0xFC, 0xFF47);
+        write(0xFF, 0xFF48);
+        write(0xFF, 0xFF49);
+        write(0x00, 0xFF4A);
+        write(0x00, 0xFF4B);
+        write(0x00, 0xFFFF);
     }
 
 #define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPU::Flags::FLAG); }
@@ -228,7 +232,7 @@ namespace GBonk
 #define _PUSH16(VAL, LEN, CYCLES) { r.sp -= 2; cpu.writew(VAL, r.sp); return {CYCLES, LEN}; }
 #define _POP16(DST, LEN, CYCLES) { DST = cpu.readw(r.sp); r.sp += 2; return {CYCLES, LEN}; }
 #define _ADD8(DST, SRC, LEN, CYCLES) { F8BCARRIES(DST, SRC); DST += SRC; FASSIGN(Z, !(DST)); FRESET(N); return {CYCLES, LEN}; }
-#define _ADD16(DST, SRC, LEN, CYCLES)  { F16BCARRIES(DST, SRC); DST += SRC; FRESET(N); return {CYCLES, LEN}; }
+#define _ADD16(DST, SRC, LEN, CYCLES)  { F16BCARRIES(DST, SRC); DST = DST + SRC; FRESET(N); return {CYCLES, LEN}; }
 #define _SUB8(DST, SRC, LEN, CYCLES) { int res = (DST) - (SRC); FBORROWS(DST, res); DST = res; FASSIGN(Z, !res); FSET(N); return {CYCLES, LEN}; }
 #define _AND(DST, SRC, LEN, CYCLES) {DST &= SRC; FASSIGN(Z, !DST); FRESET(N); FSET(H); FRESET(C); return {CYCLES, LEN}; }
 #define _OR(DST, SRC, LEN, CYCLES) {DST |= SRC; FASSIGN(Z, !DST); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
@@ -275,7 +279,7 @@ namespace GBonk
 #define _JPZ() { if (!FISSET(Z)) return {12, 3}; _JP() }
 #define _JPNC() { if (FISSET(C)) return {12, 3}; _JP() }
 #define _JPC() { if (!FISSET(C)) return {12, 3}; _JP() }
-#define _JPHL() { r.pc = r.HL.pair; return {4, 0}; }
+#define _JPHL() { r.pc = r.HL; return {4, 0}; }
 #define _JR() { int val = (int8_t)cpu.read(r.pc + 1); r.pc += val; return {8, 2}; } // todo : vraiment garder le +2 ?
 #define _JRNZ() { if (FISSET(Z)) return {8, 2}; _JR() }
 #define _JRZ() { if (!FISSET(Z)) return {8, 2}; _JR() }
@@ -433,7 +437,7 @@ namespace GBonk
       case 0x33: _SWAP(r.DE.E, 2, 8);
       case 0x34: _SWAP(r.HL.H, 2, 8);
       case 0x35: _SWAP(r.HL.L, 2, 8);
-      case 0x36: _SWAPMEM((r.HL.pair), 2, 16);
+      case 0x36: _SWAPMEM((r.HL), 2, 16);
       case 0x07: _RLC(r.AF.A, 2, 8);
       case 0x00: _RLC(r.BC.B, 2, 8);
       case 0x01: _RLC(r.BC.C, 2, 8);
@@ -441,7 +445,7 @@ namespace GBonk
       case 0x03: _RLC(r.DE.E, 2, 8);
       case 0x04: _RLC(r.HL.H, 2, 8);
       case 0x05: _RLC(r.HL.L, 2, 8);
-      case 0x06: _RLCMEM((r.HL.pair), 2, 16);
+      case 0x06: _RLCMEM((r.HL), 2, 16);
       case 0x17: _RL(r.AF.A, 2, 8);
       case 0x10: _RL(r.BC.B, 2, 8);
       case 0x11: _RL(r.BC.C, 2, 8);
@@ -449,7 +453,7 @@ namespace GBonk
       case 0x13: _RL(r.DE.E, 2, 8);
       case 0x14: _RL(r.HL.H, 2, 8);
       case 0x15: _RL(r.HL.L, 2, 8);
-      case 0x16: _RLMEM((r.HL.pair), 2, 16);
+      case 0x16: _RLMEM((r.HL), 2, 16);
       case 0x0F: _RRC(r.AF.A, 2, 8);
       case 0x08: _RRC(r.BC.B, 2, 8);
       case 0x09: _RRC(r.BC.C, 2, 8);
@@ -457,7 +461,7 @@ namespace GBonk
       case 0x0B: _RRC(r.DE.E, 2, 8);
       case 0x0C: _RRC(r.HL.H, 2, 8);
       case 0x0D: _RRC(r.HL.L, 2, 8);
-      case 0x0E: _RRCMEM((r.HL.pair), 2, 16);
+      case 0x0E: _RRCMEM((r.HL), 2, 16);
       case 0x1F: _RR(r.AF.A, 2, 8);
       case 0x18: _RR(r.BC.B, 2, 8);
       case 0x19: _RR(r.BC.C, 2, 8);
@@ -465,7 +469,7 @@ namespace GBonk
       case 0x1B: _RR(r.DE.E, 2, 8);
       case 0x1C: _RR(r.HL.H, 2, 8);
       case 0x1D: _RR(r.HL.L, 2, 8);
-      case 0x1E: _RRMEM((r.HL.pair),2,16);
+      case 0x1E: _RRMEM((r.HL),2,16);
       case 0x27: _SL(r.AF.A, 2, 8);
       case 0x20: _SL(r.BC.B, 2, 8);
       case 0x21: _SL(r.BC.C, 2, 8);
@@ -473,7 +477,7 @@ namespace GBonk
       case 0x23: _SL(r.DE.E, 2, 8);
       case 0x24: _SL(r.HL.H, 2, 8);
       case 0x25: _SL(r.HL.L, 2, 8);
-      case 0x26: _SLMEM((r.HL.pair), 2, 16);
+      case 0x26: _SLMEM((r.HL), 2, 16);
       case 0x2F: _SRA(r.AF.A, 2, 8);
       case 0x28: _SRA(r.BC.B, 2, 8);
       case 0x29: _SRA(r.BC.C, 2, 8);
@@ -481,7 +485,7 @@ namespace GBonk
       case 0x2B: _SRA(r.DE.E, 2, 8);
       case 0x2C: _SRA(r.HL.H, 2, 8);
       case 0x2D: _SRA(r.HL.L, 2, 8);
-      case 0x2E: _SRAMEM((r.HL.pair), 2, 16);
+      case 0x2E: _SRAMEM((r.HL), 2, 16);
       case 0x3F: _SRL(r.AF.A, 2, 8);
       case 0x38: _SRL(r.BC.B, 2, 8);
       case 0x39: _SRL(r.BC.C, 2, 8);
@@ -489,7 +493,7 @@ namespace GBonk
       case 0x3B: _SRL(r.DE.E, 2, 8);
       case 0x3C: _SRL(r.HL.H, 2, 8);
       case 0x3D: _SRL(r.HL.L, 2, 8);
-      case 0x3E: _SRLMEM((r.HL.pair), 2, 16);
+      case 0x3E: _SRLMEM((r.HL), 2, 16);
       case 0x47: _BIT(r.AF.A, 0, 2, 8);
       case 0x40: _BIT(r.BC.B, 0, 2, 8);
       case 0x41: _BIT(r.BC.C, 0, 2, 8);
@@ -497,7 +501,7 @@ namespace GBonk
       case 0x43: _BIT(r.DE.E, 0, 2, 8);
       case 0x44: _BIT(r.HL.H, 0, 2, 8);
       case 0x45: _BIT(r.HL.L, 0, 2, 8);
-      case 0x46: _BITMEM((r.HL.pair), 0, 2, 16);
+      case 0x46: _BITMEM((r.HL), 0, 2, 16);
       case 0x4F: _BIT(r.AF.A, 1, 2, 8);
       case 0x48: _BIT(r.BC.B, 1, 2, 8);
       case 0x49: _BIT(r.BC.C, 1, 2, 8);
@@ -505,7 +509,7 @@ namespace GBonk
       case 0x4B: _BIT(r.DE.E, 1, 2, 8);
       case 0x4C: _BIT(r.HL.H, 1, 2, 8);
       case 0x4D: _BIT(r.HL.L, 1, 2, 8);
-      case 0x4E: _BITMEM((r.HL.pair), 1, 2, 16);
+      case 0x4E: _BITMEM((r.HL), 1, 2, 16);
       case 0x57: _BIT(r.AF.A, 2, 2, 8);
       case 0x50: _BIT(r.BC.B, 2, 2, 8);
       case 0x51: _BIT(r.BC.C, 2, 2, 8);
@@ -513,7 +517,7 @@ namespace GBonk
       case 0x53: _BIT(r.DE.E, 2, 2, 8);
       case 0x54: _BIT(r.HL.H, 2, 2, 8);
       case 0x55: _BIT(r.HL.L, 2, 2, 8);
-      case 0x56: _BITMEM((r.HL.pair), 2, 2, 16);
+      case 0x56: _BITMEM((r.HL), 2, 2, 16);
       case 0x5F: _BIT(r.AF.A, 3, 2, 8);
       case 0x58: _BIT(r.BC.B, 3, 2, 8);
       case 0x59: _BIT(r.BC.C, 3, 2, 8);
@@ -521,7 +525,7 @@ namespace GBonk
       case 0x5B: _BIT(r.DE.E, 3, 2, 8);
       case 0x5C: _BIT(r.HL.H, 3, 2, 8);
       case 0x5D: _BIT(r.HL.L, 3, 2, 8);
-      case 0x5E: _BITMEM((r.HL.pair), 3, 2, 16);
+      case 0x5E: _BITMEM((r.HL), 3, 2, 16);
       case 0x67: _BIT(r.AF.A, 4, 2, 8);
       case 0x60: _BIT(r.BC.B, 4, 2, 8);
       case 0x61: _BIT(r.BC.C, 4, 2, 8);
@@ -529,7 +533,7 @@ namespace GBonk
       case 0x63: _BIT(r.DE.E, 4, 2, 8);
       case 0x64: _BIT(r.HL.H, 4, 2, 8);
       case 0x65: _BIT(r.HL.L, 4, 2, 8);
-      case 0x66: _BITMEM((r.HL.pair), 4, 2, 16);
+      case 0x66: _BITMEM((r.HL), 4, 2, 16);
       case 0x6F: _BIT(r.AF.A, 5, 2, 8);
       case 0x68: _BIT(r.BC.B, 5, 2, 8);
       case 0x69: _BIT(r.BC.C, 5, 2, 8);
@@ -537,7 +541,7 @@ namespace GBonk
       case 0x6B: _BIT(r.DE.E, 5, 2, 8);
       case 0x6C: _BIT(r.HL.H, 5, 2, 8);
       case 0x6D: _BIT(r.HL.L, 5, 2, 8);
-      case 0x6E: _BITMEM((r.HL.pair), 5, 2, 16);
+      case 0x6E: _BITMEM((r.HL), 5, 2, 16);
       case 0x77: _BIT(r.AF.A, 6, 2, 8);
       case 0x70: _BIT(r.BC.B, 6, 2, 8);
       case 0x71: _BIT(r.BC.C, 6, 2, 8);
@@ -545,7 +549,7 @@ namespace GBonk
       case 0x73: _BIT(r.DE.E, 6, 2, 8);
       case 0x74: _BIT(r.HL.H, 6, 2, 8);
       case 0x75: _BIT(r.HL.L, 6, 2, 8);
-      case 0x76: _BITMEM((r.HL.pair), 6, 2, 16);
+      case 0x76: _BITMEM((r.HL), 6, 2, 16);
       case 0x7F: _BIT(r.AF.A, 7, 2, 8);
       case 0x78: _BIT(r.BC.B, 7, 2, 8);
       case 0x79: _BIT(r.BC.C, 7, 2, 8);
@@ -553,7 +557,7 @@ namespace GBonk
       case 0x7B: _BIT(r.DE.E, 7, 2, 8);
       case 0x7C: _BIT(r.HL.H, 7, 2, 8);
       case 0x7D: _BIT(r.HL.L, 7, 2, 8);
-      case 0x7E: _BITMEM((r.HL.pair), 7, 2, 16);
+      case 0x7E: _BITMEM((r.HL), 7, 2, 16);
       case 0xC7: _SET(r.AF.A, 0, 2, 8);
       case 0xC0: _SET(r.BC.B, 0, 2, 8);
       case 0xC1: _SET(r.BC.C, 0, 2, 8);
@@ -561,14 +565,14 @@ namespace GBonk
       case 0xC3: _SET(r.DE.E, 0, 2, 8);
       case 0xC4: _SET(r.HL.H, 0, 2, 8);
       case 0xC5: _SET(r.HL.L, 0, 2, 8);
-      case 0xC6: _SETMEM((r.HL.pair), 0, 2, 16);
+      case 0xC6: _SETMEM((r.HL), 0, 2, 16);
       case 0xCC: _SET(r.HL.H, 1, 2, 8);
       case 0xD0: _SET(r.BC.B, 2, 2, 8);
       case 0xD8: _SET(r.BC.B, 3, 2, 8);
       case 0xF0: _SET(r.BC.B, 6, 2, 8);
       case 0xF8: _SET(r.BC.B, 7, 2, 8);
-      case 0xDE: _SETMEM((r.HL.pair), 7, 3, 16);
-      case 0xFE: _SETMEM((r.HL.pair), 7, 2, 16);
+      case 0xDE: _SETMEM((r.HL), 7, 3, 16);
+      case 0xFE: _SETMEM((r.HL), 7, 2, 16);
       case 0x87: _RES(r.AF.A, 0, 2, 8);
       case 0x80: _RES(r.BC.B, 0, 2, 8);
       case 0x81: _RES(r.BC.C, 0, 2, 8);
@@ -576,9 +580,9 @@ namespace GBonk
       case 0x83: _RES(r.DE.E, 0, 2, 8);
       case 0x84: _RES(r.HL.H, 0, 2, 8);
       case 0x85: _RES(r.HL.L, 0, 2, 8);
-      case 0x86: _RESMEM((r.HL.pair), 0, 2, 16);
-      case 0x9E: _RESMEM((r.HL.pair), 3, 2, 16);
-      case 0xBE: _RESMEM((r.HL.pair), 7, 2, 16);
+      case 0x86: _RESMEM((r.HL), 0, 2, 16);
+      case 0x9E: _RESMEM((r.HL), 3, 2, 16);
+      case 0xBE: _RESMEM((r.HL), 7, 2, 16);
       default:
           std::cerr << "Uninplemented CB op: " << std::hex << op << std::endl;
           abort();
@@ -620,58 +624,58 @@ namespace GBonk
       case 0x7B: _LD(r.AF.A, r.DE.E, 1, 4);
       case 0x7C: _LD(r.AF.A, r.HL.H, 1, 4);
       case 0x7D: _LD(r.AF.A, r.HL.L, 1, 4);
-      case 0x7E: _LD(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0x7E: _LD(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0x40: _LD(r.BC.B, r.BC.B, 1, 4);
       case 0x41: _LD(r.BC.B, r.BC.C, 1, 4);
       case 0x42: _LD(r.BC.B, r.DE.D, 1, 4);
       case 0x43: _LD(r.BC.B, r.DE.E, 1, 4);
       case 0x44: _LD(r.BC.B, r.HL.H, 1, 4);
       case 0x45: _LD(r.BC.B, r.HL.L, 1, 4);
-      case 0x46: _LD(r.BC.B, cpu.read(r.HL.pair), 1, 8);
+      case 0x46: _LD(r.BC.B, cpu.read(r.HL), 1, 8);
       case 0x48: _LD(r.BC.C, r.BC.B, 1, 4);
       case 0x49: _LD(r.BC.C, r.BC.C, 1, 4);
       case 0x4A: _LD(r.BC.C, r.DE.D, 1, 4);
       case 0x4B: _LD(r.BC.C, r.DE.E, 1, 4);
       case 0x4C: _LD(r.BC.C, r.HL.H, 1, 4);
       case 0x4D: _LD(r.BC.C, r.HL.L, 1, 4);
-      case 0x4E: _LD(r.BC.C, cpu.read(r.HL.pair), 1, 8);
+      case 0x4E: _LD(r.BC.C, cpu.read(r.HL), 1, 8);
       case 0x50: _LD(r.DE.D, r.BC.B, 1, 4);
       case 0x51: _LD(r.DE.D, r.BC.C, 1, 4);
       case 0x52: _LD(r.DE.D, r.DE.D, 1, 4);
       case 0x53: _LD(r.DE.D, r.DE.E, 1, 4);
       case 0x54: _LD(r.DE.D, r.HL.H, 1, 4);
       case 0x55: _LD(r.DE.D, r.HL.L, 1, 4);
-      case 0x56: _LD(r.DE.D, cpu.read(r.HL.pair), 1, 8);
+      case 0x56: _LD(r.DE.D, cpu.read(r.HL), 1, 8);
       case 0x58: _LD(r.DE.E, r.BC.B, 1, 4);
       case 0x59: _LD(r.DE.E, r.BC.C, 1, 4);
       case 0x5A: _LD(r.DE.E, r.DE.D, 1, 4);
       case 0x5B: _LD(r.DE.E, r.DE.E, 1, 4);
       case 0x5C: _LD(r.DE.E, r.HL.H, 1, 4);
       case 0x5D: _LD(r.DE.E, r.HL.L, 1, 4);
-      case 0x5E: _LD(r.DE.E, cpu.read(r.HL.pair), 1, 8);
+      case 0x5E: _LD(r.DE.E, cpu.read(r.HL), 1, 8);
       case 0x60: _LD(r.HL.H, r.BC.B, 1, 4);
       case 0x61: _LD(r.HL.H, r.BC.C, 1, 4);
       case 0x62: _LD(r.HL.H, r.DE.D, 1, 4);
       case 0x63: _LD(r.HL.H, r.DE.E, 1, 4);
       case 0x64: _LD(r.HL.H, r.HL.H, 1, 4);
       case 0x65: _LD(r.HL.H, r.HL.L, 1, 4);
-      case 0x66: _LD(r.HL.H, cpu.read(r.HL.pair), 1, 8);
+      case 0x66: _LD(r.HL.H, cpu.read(r.HL), 1, 8);
       case 0x68: _LD(r.HL.L, r.BC.B, 1, 4);
       case 0x69: _LD(r.HL.L, r.BC.C, 1, 4);
       case 0x6A: _LD(r.HL.L, r.DE.D, 1, 4);
       case 0x6B: _LD(r.HL.L, r.DE.E, 1, 4);
       case 0x6C: _LD(r.HL.L, r.HL.H, 1, 4);
       case 0x6D: _LD(r.HL.L, r.HL.L, 1, 4);
-      case 0x6E: _LD(r.HL.L, cpu.read(r.HL.pair), 1, 8);
-      case 0x70: _8BLDMEM((r.HL.pair), r.BC.B, 1, 8);
-      case 0x71: _8BLDMEM((r.HL.pair), r.BC.C, 1, 8);
-      case 0x72: _8BLDMEM((r.HL.pair), r.DE.D, 1, 8);
-      case 0x73: _8BLDMEM((r.HL.pair), r.DE.E, 1, 8);
-      case 0x74: _8BLDMEM((r.HL.pair), r.HL.H, 1, 8);
-      case 0x75: _8BLDMEM((r.HL.pair), r.HL.L, 1, 8);
-      case 0x36: _8BLDMEM((r.HL.pair), cpu.read(r.pc + 1), 2, 12);
-      case 0x0A: _LD(r.AF.A, cpu.read(r.BC.pair), 1, 8);
-      case 0x1A: _LD(r.AF.A, cpu.read(r.DE.pair), 1, 8);
+      case 0x6E: _LD(r.HL.L, cpu.read(r.HL), 1, 8);
+      case 0x70: _8BLDMEM((r.HL), r.BC.B, 1, 8);
+      case 0x71: _8BLDMEM((r.HL), r.BC.C, 1, 8);
+      case 0x72: _8BLDMEM((r.HL), r.DE.D, 1, 8);
+      case 0x73: _8BLDMEM((r.HL), r.DE.E, 1, 8);
+      case 0x74: _8BLDMEM((r.HL), r.HL.H, 1, 8);
+      case 0x75: _8BLDMEM((r.HL), r.HL.L, 1, 8);
+      case 0x36: _8BLDMEM((r.HL), cpu.read(r.pc + 1), 2, 12);
+      case 0x0A: _LD(r.AF.A, cpu.read(r.BC), 1, 8);
+      case 0x1A: _LD(r.AF.A, cpu.read(r.DE), 1, 8);
       case 0xFA: _LD(r.AF.A, cpu.read(cpu.readw(r.pc + 1)), 3, 16); // !! conflict ?
       case 0x3E: _LD(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0x47: _LD(r.BC.B, r.AF.A, 1, 4);
@@ -680,23 +684,23 @@ namespace GBonk
       case 0x5F: _LD(r.DE.E, r.AF.A, 1, 4);
       case 0x67: _LD(r.HL.H, r.AF.A, 1, 4);
       case 0x6F: _LD(r.HL.L, r.AF.A, 1, 4);
-      case 0x02: _8BLDMEM((r.BC.pair), r.AF.A, 1, 8);
-      case 0x12: _8BLDMEM((r.DE.pair), r.AF.A, 1, 8);
-      case 0x77: _8BLDMEM((r.HL.pair), r.AF.A, 1, 8);
+      case 0x02: _8BLDMEM((r.BC), r.AF.A, 1, 8);
+      case 0x12: _8BLDMEM((r.DE), r.AF.A, 1, 8);
+      case 0x77: _8BLDMEM((r.HL), r.AF.A, 1, 8);
       case 0xEA: _8BLDMEM((cpu.readw(r.pc + 1)), r.AF.A, 3, 16);
       case 0xF2: _LD(r.AF.A, cpu.read(0xFF00 + r.BC.C), 1, 8);
       case 0xE2: _8BLDMEM((0xFF00 + r.BC.C), r.AF.A, 1, 8);
-      case 0x3A: _LD(r.AF.A, cpu.read(r.HL.pair--), 1, 8);
-      case 0x32: _8BLDMEM(r.HL.pair--, r.AF.A, 1, 8);
-      case 0x2A: _LD(r.AF.A, cpu.read(r.HL.pair++), 1, 8);
-      case 0x22: _8BLDMEM(r.HL.pair++, r.AF.A, 1, 8);
+      case 0x3A: _LD(r.AF.A, cpu.read(r.HL--), 1, 8);
+      case 0x32: _8BLDMEM(r.HL--, r.AF.A, 1, 8);
+      case 0x2A: _LD(r.AF.A, cpu.read(r.HL++), 1, 8);
+      case 0x22: _8BLDMEM(r.HL++, r.AF.A, 1, 8);
       case 0xE0: _8BLDMEM((0xFF00 + cpu.read(r.pc + 1)), r.AF.A, 2, 12);
       case 0xF0: _LD(r.AF.A, cpu.read(0xFF00 + cpu.read(r.pc + 1)), 2, 12);
-      case 0x01: _LD(r.BC.pair, cpu.readw(r.pc + 1), 3, 12);
-      case 0x11: _LD(r.DE.pair, cpu.readw(r.pc + 1), 3, 12);
-      case 0x21: _LD(r.HL.pair, cpu.readw(r.pc + 1), 3, 12);
+      case 0x01: _LD(r.BC, cpu.readw(r.pc + 1), 3, 12);
+      case 0x11: _LD(r.DE, cpu.readw(r.pc + 1), 3, 12);
+      case 0x21: _LD(r.HL, cpu.readw(r.pc + 1), 3, 12);
       case 0x31: _LD(r.sp, cpu.readw(r.pc + 1), 3, 12);
-      case 0xF9: _LD(r.sp, r.HL.pair, 1, 8);
+      case 0xF9: _LD(r.sp, r.HL, 1, 8);
       case 0xF8: {
           FRESET(Z);
           FRESET(N);
@@ -704,18 +708,18 @@ namespace GBonk
           int rh = (int8_t)cpu.read(r.pc + 1);
           FASSIGN(H, _8BHCARRY(op, rh));
           FASSIGN(C, _8BCARRY(op, rh));
-          _LD(r.HL.pair, op + rh, 2, 12);
+          _LD(r.HL, op + rh, 2, 12);
       }
       case 0x08: _8BLDMEM((cpu.readw(r.pc + 1)), r.sp, 3, 20);
           // conflit sur les 4 en dessous: verifier
-      case 0xF5: _PUSH16(r.AF.pair, 1, 16);
-      case 0xC5: _PUSH16(r.BC.pair, 1, 16);
-      case 0xD5: _PUSH16(r.DE.pair, 1, 16);
-      case 0xE5: _PUSH16(r.HL.pair, 1, 16);
-      case 0xF1: _POP16(r.AF.pair, 1, 12);
-      case 0xC1: _POP16(r.BC.pair, 1, 12);
-      case 0xD1: _POP16(r.DE.pair, 1, 12);
-      case 0xE1: _POP16(r.HL.pair, 1, 12);
+      case 0xF5: _PUSH16(r.AF, 1, 16);
+      case 0xC5: _PUSH16(r.BC, 1, 16);
+      case 0xD5: _PUSH16(r.DE, 1, 16);
+      case 0xE5: _PUSH16(r.HL, 1, 16);
+      case 0xF1: _POP16(r.AF, 1, 12);
+      case 0xC1: _POP16(r.BC, 1, 12);
+      case 0xD1: _POP16(r.DE, 1, 12);
+      case 0xE1: _POP16(r.HL, 1, 12);
       case 0x87: _ADD8(r.AF.A, r.AF.A, 1, 4);
       case 0x80: _ADD8(r.AF.A, r.BC.B, 1, 4);
       case 0x81: _ADD8(r.AF.A, r.BC.C, 1, 4);
@@ -723,7 +727,7 @@ namespace GBonk
       case 0x83: _ADD8(r.AF.A, r.DE.E, 1, 4);
       case 0x84: _ADD8(r.AF.A, r.HL.H, 1, 4);
       case 0x85: _ADD8(r.AF.A, r.HL.L, 1, 4);
-      case 0x86: _ADD8(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0x86: _ADD8(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xC6: _ADD8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0x8F: _ADD8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x88: _ADD8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
@@ -732,7 +736,7 @@ namespace GBonk
       case 0x8B: _ADD8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x8C: _ADD8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x8D: _ADD8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8E: _ADD8(r.AF.A, cpu.read(r.HL.pair) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
+      case 0x8E: _ADD8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
       case 0xCE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
       case 0x97: _SUB8(r.AF.A, r.AF.A, 1, 4);
       case 0x90: _SUB8(r.AF.A, r.BC.B, 1, 4);
@@ -741,7 +745,7 @@ namespace GBonk
       case 0x93: _SUB8(r.AF.A, r.DE.E, 1, 4);
       case 0x94: _SUB8(r.AF.A, r.HL.H, 1, 4);
       case 0x95: _SUB8(r.AF.A, r.HL.L, 1, 4);
-      case 0x96: _SUB8(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0x96: _SUB8(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xD6: _SUB8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0x9F: _SUB8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x98: _SUB8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
@@ -750,7 +754,7 @@ namespace GBonk
       case 0x9B: _SUB8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x9C: _SUB8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
       case 0x9D: _SUB8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL.pair) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
+      case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
       case 0xDE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
       case 0xA7: _AND(r.AF.A, r.AF.A, 1, 4);
       case 0xA0: _AND(r.AF.A, r.BC.B, 1, 4);
@@ -759,7 +763,7 @@ namespace GBonk
       case 0xA3: _AND(r.AF.A, r.DE.E, 1, 4);
       case 0xA4: _AND(r.AF.A, r.HL.H, 1, 4);
       case 0xA5: _AND(r.AF.A, r.HL.L, 1, 4);
-      case 0xA6: _AND(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xA6: _AND(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xE6: _AND(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0xB7: _OR(r.AF.A, r.AF.A, 1, 4);
       case 0xB0: _OR(r.AF.A, r.BC.B, 1, 4);
@@ -768,7 +772,7 @@ namespace GBonk
       case 0xB3: _OR(r.AF.A, r.DE.E, 1, 4);
       case 0xB4: _OR(r.AF.A, r.HL.H, 1, 4);
       case 0xB5: _OR(r.AF.A, r.HL.L, 1, 4);
-      case 0xB6: _OR(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xB6: _OR(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xF6: _OR(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0xAF: _XOR(r.AF.A, r.AF.A, 1, 4);
       case 0xA8: _XOR(r.AF.A, r.BC.B, 1, 4);
@@ -777,7 +781,7 @@ namespace GBonk
       case 0xAB: _XOR(r.AF.A, r.DE.E, 1, 4);
       case 0xAC: _XOR(r.AF.A, r.HL.H, 1, 4);
       case 0xAD: _XOR(r.AF.A, r.HL.L, 1, 4);
-      case 0xAE: _XOR(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xAE: _XOR(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xEE: _XOR(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0xBF: _CP(r.AF.A, r.AF.A, 1, 4);
       case 0xB8: _CP(r.AF.A, r.BC.B, 1, 4);
@@ -786,7 +790,7 @@ namespace GBonk
       case 0xBB: _CP(r.AF.A, r.DE.E, 1, 4);
       case 0xBC: _CP(r.AF.A, r.HL.H, 1, 4);
       case 0xBD: _CP(r.AF.A, r.HL.L, 1, 4);
-      case 0xBE: _CP(r.AF.A, cpu.read(r.HL.pair), 1, 8);
+      case 0xBE: _CP(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xFE: _CP(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0x3C: _INC(r.AF.A, 1, 4);
       case 0x04: _INC(r.BC.B, 1, 4);
@@ -795,7 +799,7 @@ namespace GBonk
       case 0x1C: _INC(r.DE.E, 1, 4);
       case 0x24: _INC(r.HL.H, 1, 4);
       case 0x2C: _INC(r.HL.L, 1, 4);
-      case 0x34: _INCMEM((r.HL.pair), 1, 12);
+      case 0x34: _INCMEM((r.HL), 1, 12);
       case 0x3D: _DEC(r.AF.A, 1, 4);
       case 0x05: _DEC(r.BC.B, 1, 4);
       case 0x0D: _DEC(r.BC.C, 1, 4);
@@ -803,19 +807,19 @@ namespace GBonk
       case 0x1D: _DEC(r.DE.E, 1, 4);
       case 0x25: _DEC(r.HL.H, 1, 4);
       case 0x2D: _DEC(r.HL.L, 1, 4);
-      case 0x35: _DECMEM((r.HL.pair), 1, 12);
-      case 0x09: _ADD16(r.HL.pair, r.BC.pair, 1, 8);
-      case 0x19: _ADD16(r.HL.pair, r.DE.pair, 1, 8);
-      case 0x29: _ADD16(r.HL.pair, r.HL.pair, 1, 8);
-      case 0x39: _ADD16(r.HL.pair, r.sp, 1, 8);
+      case 0x35: _DECMEM((r.HL), 1, 12);
+      case 0x09: _ADD16(r.HL, r.BC, 1, 8);
+      case 0x19: _ADD16(r.HL, r.DE, 1, 8);
+      case 0x29: _ADD16(r.HL, r.HL, 1, 8);
+      case 0x39: _ADD16(r.HL, r.sp, 1, 8);
       case 0xE8: FRESET(Z); _ADD16(r.sp, (int)cpu.read(r.pc + 1), 2, 16); // reverifier si ADD ou ADDMEM ?
-      case 0x03: _INCREG(r.BC.pair, 1, 8);
-      case 0x13: _INCREG(r.DE.pair, 1, 8);
-      case 0x23: _INCREG(r.HL.pair, 1, 8);
+      case 0x03: _INCREG(r.BC, 1, 8);
+      case 0x13: _INCREG(r.DE, 1, 8);
+      case 0x23: _INCREG(r.HL, 1, 8);
       case 0x33: _INCREG(r.sp, 1, 8);
-      case 0x0B: _DECREG(r.BC.pair, 1, 8);
-      case 0x1B: _DECREG(r.DE.pair, 1, 8);
-      case 0x2B: _DECREG(r.HL.pair, 1, 8);
+      case 0x0B: _DECREG(r.BC, 1, 8);
+      case 0x1B: _DECREG(r.DE, 1, 8);
+      case 0x2B: _DECREG(r.HL, 1, 8);
       case 0x3B: _DECREG(r.sp, 1, 8);
       case 0xCB: return bitOp(cpu, r);
       case 0x27: return DAA(cpu, r);

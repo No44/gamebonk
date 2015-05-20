@@ -41,13 +41,13 @@ namespace GBonk
         if (fileHandle == INVALID_HANDLE_VALUE)
             throw std::runtime_error(file);
 
-        contentSize_ =
-            std::max<uint32_t>(GetFileSize(fileHandle, nullptr), MMU::TOTAL_ADDRESSABLE_MEMORY);
-        content_ = new uint8_t[contentSize_];
-        std::memset(content_, 0, contentSize_);
+        unsigned int contentSize = GetFileSize(fileHandle, nullptr);
+        content_ = new uint8_t[contentSize];
+        std::memset(content_, 0, contentSize);
         DWORD bytesRead = 0;
-        ReadFile(fileHandle, content_, contentSize_, &bytesRead, nullptr);
+        ReadFile(fileHandle, content_, contentSize, &bytesRead, nullptr);
         CloseHandle(fileHandle);
+
         load_();
     }
 #else
@@ -65,11 +65,10 @@ namespace GBonk
         throw std::runtime_error(strerror(errno));
       }
 
-      // todo: probablement pas necessaire
-      contentSize_ = std::max<uint32_t>(buf.st_size, MMU::TOTAL_ADDRESSABLE_MEMORY);
-      content_ = new uint8_t[contentSize_];
-      std::memset(content_, 0, contentSize_);
-      ssize_t bytesRead = ::read(fd, content_, contentSize_);
+      unsigned int contentSize = buf.st_size;
+      content_ = new uint8_t[contentSize];
+      std::memset(content_, 0, contentSize);
+      ssize_t bytesRead = ::read(fd, content, contentSize);
       ::close(fd);
 
       load_();
@@ -80,8 +79,7 @@ namespace GBonk
     void Cartridge::loadContent(const uint8_t* c, uint32_t s)
     {
         close();
-        contentSize_ = std::max(s, MMU::TOTAL_ADDRESSABLE_MEMORY);
-        content_ = new uint8_t[contentSize_];
+        content_ = new uint8_t[s];
         std::memcpy(content_, c, s);
         load_();
     }
@@ -185,7 +183,6 @@ namespace GBonk
             << "\tVersion:\t" << version_ << std::endl
             << "\tType:\t" << AMBC::typeToString(AMBC::Type(type_)) << std::endl
             << "\tRom size:\t" << romSize_ << std::endl
-            << "\tRam size:\t" << ramSize_ << std::endl
-            << "\tTotal cartridge size:\t" << contentSize_ << std::endl;
+            << "\tRam size:\t" << ramSize_ << std::endl;
     }
 }

@@ -48,10 +48,16 @@
     <ClCompile Include="src\video\Driver.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Debugger.cpp">
+    <ClCompile Include="src\debug\Debugger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\DebuggerHost.cpp">
+    <ClCompile Include="src\debug\DebuggerHost.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debug\MemoryDumper.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debug\Instruction.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -92,10 +98,16 @@
     <ClInclude Include="inc\Disassembler.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="inc\Debugger.hpp">
+    <ClInclude Include="inc\debug\Debugger.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="inc\DebuggerHost.hpp">
+    <ClInclude Include="inc\debug\DebuggerHost.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\debug\MemoryDumper.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="inc\debug\Instruction.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

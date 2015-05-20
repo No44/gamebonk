@@ -8,21 +8,43 @@
 #include "IORegistersRepository.hpp"
 
 
-#define REGPAIR(FIRST, SECOND) union { \
-       struct {               \
-         uint8_t SECOND;      \
-         uint8_t FIRST;       \
-       };                     \
-       uint16_t  pair;        \
-} FIRST##SECOND               \
+#define REGPAIR(FIRST, SECOND)                      \
+struct _##FIRST##SECOND {                           \
+    /* FIRST: most significant*/                    \
+    uint8_t FIRST;                                  \
+    uint8_t SECOND;                                 \
+    _##FIRST##SECOND& operator=(uint16_t v)         \
+    {                                               \
+        this-> SECOND = v & 0xFF;                   \
+        this-> FIRST = v >> 8;                      \
+        return *this;                               \
+    }                                               \
+    operator uint16_t() const                       \
+    {                                               \
+        return this-> SECOND | (this-> FIRST << 8); \
+    }                                               \
+    _##FIRST##SECOND operator--(int)                \
+    {                                               \
+        _##FIRST##SECOND r = *this;                 \
+        uint16_t v = *this;                         \
+        v--;                                        \
+        *this = v;                                  \
+        return r;                                   \
+    }                                               \
+    _##FIRST##SECOND operator++(int)                \
+    {                                               \
+        _##FIRST##SECOND r = *this;                 \
+        uint16_t v = *this;                         \
+        v++;                                        \
+        *this = v;                                  \
+        return r;                                   \
+    }                                               \
+};                                                  \
+_##FIRST##SECOND FIRST##SECOND                      \
 
 
 namespace GBonk
 {
-    // clock speed:4.2 MHZ
-    // HSYNC: 9200KHz
-    // VSYNC: 60HZ
-
     class Cartridge;
 
     class CPU
@@ -70,6 +92,12 @@ namespace GBonk
         void run();
         void halt() { }
         void stop() { }
+
+        enum InterruptId
+        {
+
+        };
+        void interrupt(InterruptId interrupt);
         // interrupts will be disabled after the next
         // instruction is ran
         void prepareDisableInterrupts() {}
@@ -81,6 +109,7 @@ namespace GBonk
         // immediatly enable interrupts
         void enableInterrupts();
 
+        void ioregWrite(unsigned int& value, uint32_t addr8b);
         void write(unsigned int value, uint32_t addr);
         void writew(unsigned int value, uint32_t addr);
         unsigned int read(uint32_t addr);

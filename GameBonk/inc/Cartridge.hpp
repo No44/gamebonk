@@ -55,7 +55,6 @@ namespace GBonk
         uint32_t version_;
         uint32_t romSize_;
         uint32_t ramSize_;
-        uint32_t contentSize_;
         uint8_t *content_;
     };
 

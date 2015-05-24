@@ -6,6 +6,8 @@
 #include "video/VideoSystem.hpp"
 #include "MMU.hpp"
 #include "IORegistersRepository.hpp"
+#include "ClockScheduler.hpp"
+#include "debug/Debugger.hpp"
 
 
 #define REGPAIR(FIRST, SECOND)                      \
@@ -81,21 +83,23 @@ namespace GBonk
             unsigned int bytes;
         };
 
-        static const unsigned int CLOCK_SPEED = 4194304;
-        static const unsigned int HORIZ_SYNC = 0;
-        static const unsigned int InterruptPeriod = 0;
-
         Registers registers_;
         Clock last_instr_;
         Clock globalClock_;
 
+        void prepareLaunch();
         void run();
+        void runOne();
         void halt() { }
         void stop() { }
 
         enum InterruptId
         {
-
+            INT_VBLANK = 0x40,
+            INT_LCDC = 0x48,
+            INT_TIMER = 0x50,
+            INT_SERIAL = 0x58,
+            INT_P10 = 0x60,
         };
         void interrupt(InterruptId interrupt);
         // interrupts will be disabled after the next
@@ -116,6 +120,10 @@ namespace GBonk
         unsigned int readw(uint32_t addr);
 
     private:
+        void cbDrawScanLine_();
+        void cbVBlank_();
+        void cbTimerOverflow_();
+
         void launchSequence_();
 
         friend OpFormat runCurrentOp(CPU&);
@@ -127,7 +135,8 @@ namespace GBonk
         MMU mmu_;
         Video::VideoSystem video_;
         Cartridge* game_;
-        friend class Disassembler;
+        ClockScheduler sched_;
+        friend class Debug::Debugger;
     };
 
 }

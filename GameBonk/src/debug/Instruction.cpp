@@ -3,6 +3,7 @@
 #include <sstream>
 
 #include "debug/Instruction.hpp"
+#include "ROMReader.hpp"
 
 namespace GBonk
 {
@@ -25,15 +26,15 @@ namespace GBonk
             return builder.str();
         }
 
-        Instruction::Instruction(const uint8_t* addr, unsigned int off)
+        Instruction::Instruction(const ROMReader& r)
             : mnemo_(""),
-            addr_(off),
+            addr_(r.addr()),
             len_(0),
             params_()
         {
             bytecode_.reserve(3);
-            bytecode_.push_back(*addr);
-            decodeInstruction_(addr);
+            bytecode_.push_back(*r);
+            decodeInstruction_(r);
         }
 
         Instruction::Instruction(const Instruction& i)
@@ -168,12 +169,12 @@ namespace GBonk
             return std::string("(") + in + std::string(")");
         }
 
-        unsigned int readw(const uint8_t* addr)
+        unsigned int readw(const ROMReader& addr)
         {
             return addr[0] | addr[1] << 8;
         }
 
-        void Instruction::decodeBitInstruction_(const uint8_t* addr)
+        void Instruction::decodeBitInstruction_(const ROMReader& addr)
         {
             bytecode_.push_back(addr[0]);
             switch (addr[0])
@@ -334,7 +335,7 @@ namespace GBonk
             }
         }
 
-        void Instruction::decodeGbInstruction_(const uint8_t* addr)
+        void Instruction::decodeGbInstruction_(const ROMReader& addr)
         {
             bytecode_.push_back(addr[0]);
             switch (addr[0])
@@ -343,7 +344,7 @@ namespace GBonk
             }
         }
 
-        void Instruction::decodeInstruction_(const uint8_t* addr)
+        void Instruction::decodeInstruction_(const ROMReader& addr)
         {
             switch (bytecode_[0])
             {

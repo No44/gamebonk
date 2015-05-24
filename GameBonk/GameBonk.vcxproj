@@ -124,6 +124,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="src\AMemoryBankController.cpp" />
     <ClCompile Include="src\Cartridge.cpp" />
+    <ClCompile Include="src\ClockScheduler.cpp" />
     <ClCompile Include="src\CPU.cpp" />
     <ClCompile Include="src\debug\Debugger.cpp" />
     <ClCompile Include="src\debug\DebuggerHost.cpp" />
@@ -131,6 +132,7 @@
     <ClCompile Include="src\debug\MemoryDumper.cpp" />
     <ClCompile Include="src\MemoryBankController1.cpp" />
     <ClCompile Include="src\MMU.cpp" />
+    <ClCompile Include="src\ROMReader.cpp" />
     <ClCompile Include="src\video\Driver.cpp" />
     <ClCompile Include="src\video\Sprite.cpp" />
     <ClCompile Include="src\video\TilePatternTable.cpp" />
@@ -140,6 +142,7 @@
   <ItemGroup>
     <ClInclude Include="inc\AMemoryBankController.hpp" />
     <ClInclude Include="inc\Cartridge.hpp" />
+    <ClInclude Include="inc\ClockScheduler.hpp" />
     <ClInclude Include="inc\CPU.hpp" />
     <ClInclude Include="inc\debug\Debugger.hpp" />
     <ClInclude Include="inc\debug\DebuggerHost.hpp" />
@@ -149,6 +152,7 @@
     <ClInclude Include="inc\IORegistersRepository.hpp" />
     <ClInclude Include="inc\MemoryBankController1.hpp" />
     <ClInclude Include="inc\MMU.hpp" />
+    <ClInclude Include="inc\ROMReader.hpp" />
     <ClInclude Include="inc\video\Driver.hpp" />
     <ClInclude Include="inc\video\Sprite.hpp" />
     <ClInclude Include="inc\video\TileTable.hpp" />

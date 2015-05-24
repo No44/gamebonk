@@ -24,11 +24,14 @@ namespace GBonk
 
             void updateLCDC();
 
-            void cheatDrawAll();
-            void drawline(int line);
+            void render();
+            void drawAll();
+            void drawLine();
+            void drawLine(int line);
 
             static const unsigned int ScreenWidth = 160;
             static const unsigned int ScreenHeight = 144;
+            static const unsigned int ScanLines = 153;
 
         private:
             void buildBackground_();
@@ -65,6 +68,7 @@ namespace GBonk
             uint8_t* SCX_;
             uint8_t* WX_;
             uint8_t* WY_;
+            uint8_t* LY_;
             uint8_t* LYC_;
 
             // AKA TileDataTable

@@ -7,12 +7,14 @@
 #include <iomanip>
 #include <map>
 #include <sstream>
+#include <functional>
 
 #include "video/Driver.hpp"
 #include "debug/Instruction.hpp"
 #include "MMU.hpp"
 #include "CPU.hpp"
 #include "Cartridge.hpp"
+#include "ROMReader.hpp"
 
 #ifndef _WIN32
 
@@ -25,6 +27,18 @@ void OutputDebugString(const std::string& str)
 
 namespace GBonk
 {
+    static const unsigned int CPU_FREQ = 4194304;
+    static const unsigned int HSYNC_FREQ = 60;
+
+
+    static const unsigned int HSYNC_CYCLES = CPU_FREQ / HSYNC_FREQ;
+
+    // Scanline refresh
+    static const unsigned int SCANLINE_CYCLES = HSYNC_CYCLES / Video::VideoSystem::ScanLines;
+    // VBlank interrupt
+    static const unsigned int VBLANK_INT_CYCLES = SCANLINE_CYCLES * Video::VideoSystem::ScreenHeight;
+    // VBlank lasts for
+    static const unsigned int VBLANK_PERIOD_CYCLES = SCANLINE_CYCLES * (Video::VideoSystem::ScanLines - Video::VideoSystem::ScreenHeight);
 
     CPU::CPU()
         : interruptMasterEnable_(true),
@@ -38,64 +52,81 @@ namespace GBonk
         game_ = &game;
     }
 
-    void CPU::run()
+    void CPU::cbDrawScanLine_()
     {
-        // TODO: TEMP
-        Video::Driver d;
+        video_.drawLine();
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
+    }
 
+    void CPU::cbVBlank_()
+    {
+        video_.render();
+        interrupt(INT_VBLANK);
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
+    }
+
+    void CPU::cbTimerOverflow_()
+    {
+        interrupt(INT_TIMER);
+        // todo: schedule
+    }
+
+    void CPU::prepareLaunch()
+    {
         {
             std::stringstream builder;
             builder << "System memory base: 0x" << std::hex << (uint64_t)this->mmu_.memory() << std::endl;
             builder << "Cartridge ROM: 0x" << std::hex << (uint64_t)game_->ROM() << std::endl;
             OutputDebugString(builder.str().c_str());
         }
-
-        d.openWindow();
-
         launchSequence_();
         mmu_.setMBC(GBonk::AMBC::makeMBC(*game_));
+    }
 
-        unsigned long long counter = 0;
-        uint16_t& PC = registers_.pc;
-        bool render = false;
-        while (d.pumpEvents() == false)
+    inline void CPU::runOne()
+    {
+        //std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
         {
-            //std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
-            {
-                Debug::Instruction instr(game_->ROM() + registers_.pc, registers_.pc);
-                std::cout << "[0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex << registers_.pc << "]";
-                std::cout << instr.toString() << std::endl;
-            }
-            CPU::OpFormat f = runCurrentOp(*this);
+            Debug::Instruction instr(ROMReader(*this, registers_.pc));
+            std::cout << "[0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex << registers_.pc << "]";
+            std::cout << instr.toString() << std::endl;
+        }
+        CPU::OpFormat f = runCurrentOp(*this);
 
-            registers_.pc += f.bytes;
-            counter += f.cycles;
-            
-            video_.cheatDrawAll();
-            if (render)
-                d.render();
-            // Read and run operation at PC
-            // decrement COUNTER from the amount of
-            // cycles the operation last
+        registers_.pc += f.bytes;
 
-            /*
-            if (counter <= 0)
-            {
-                // run interrupts
-                
-                if runInterrupt:
-                    if_ = true;
-                    interruptMasterEnable_ = false;
-                    r.sp -= 2;
-                    writew(r.pc, r.sp);
-                    r.pc = interrupt_start_address;
-                
-                
-                counter += CPU::InterruptPeriod;
-                // if (exitRequested)
-                // break;
-            }
-            */
+        sched_.step(f.cycles);
+
+        // Read and run operation at PC
+        // decrement COUNTER from the amount of
+        // cycles the operation last
+
+        /*
+        if (counter <= 0)
+        {
+        // run interrupts
+
+        if runInterrupt:
+        if_ = true;
+        interruptMasterEnable_ = false;
+        r.sp -= 2;
+        writew(r.pc, r.sp);
+        r.pc = interrupt_start_address;
+
+
+        counter += CPU::InterruptPeriod;
+        // if (exitRequested)
+        // break;
+        }
+        */
+    }
+
+    void CPU::run()
+    {
+        prepareLaunch();
+        for (;;)
+        {
+            runOne();
         }
     }
 
@@ -141,6 +172,7 @@ namespace GBonk
 
     void CPU::writew(unsigned int value, uint32_t addr)
     {
+        mmu_.writew(value, addr);
         switch (addr & 0xFF00)
         {
         case 0xFF00:
@@ -150,11 +182,11 @@ namespace GBonk
         default:
             break;
         }
-        mmu_.writew(value, addr);
     }
 
     void CPU::write(unsigned int value, uint32_t addr)
     {
+        mmu_.write(value, addr);
         switch (addr & 0xFF00)
         {
         case 0xFF00:
@@ -163,11 +195,12 @@ namespace GBonk
         default:
             break;
         }
-        mmu_.write(value, addr);
     }
 
     void CPU::launchSequence_()
     {
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
         registers_.pc = 0x100;
         registers_.AF = 1;
         registers_.AF.F = 0xB0;
@@ -199,7 +232,6 @@ namespace GBonk
         write(0xF3, 0xFF25);
         write(0xF1, 0xFF26);
         write(0x91, 0xFF40);
-        video_.updateLCDC();
         write(0x00, 0xFF42);
         write(0x00, 0xFF43);
         write(0x00, 0xFF45);
@@ -676,7 +708,7 @@ namespace GBonk
       case 0x36: _8BLDMEM((r.HL), cpu.read(r.pc + 1), 2, 12);
       case 0x0A: _LD(r.AF.A, cpu.read(r.BC), 1, 8);
       case 0x1A: _LD(r.AF.A, cpu.read(r.DE), 1, 8);
-      case 0xFA: _LD(r.AF.A, cpu.read(cpu.readw(r.pc + 1)), 3, 16); // !! conflict ?
+      case 0xFA: _LD(r.AF.A, cpu.read(cpu.readw(r.pc + 1)), 3, 16);
       case 0x3E: _LD(r.AF.A, cpu.read(r.pc + 1), 2, 8);
       case 0x47: _LD(r.BC.B, r.AF.A, 1, 4);
       case 0x4F: _LD(r.BC.C, r.AF.A, 1, 4);
@@ -870,7 +902,7 @@ namespace GBonk
       case 0xD8: _RETC();
       case 0xD9: _RETI();
       default:
-        std::cerr << "Undefined opcode " << std::hex << op << ", treating as NOP" << std::endl;
+        std::cerr << "Undefined opcode " << std::hex << op << std::endl;
         abort();
         return {4,1};
       }

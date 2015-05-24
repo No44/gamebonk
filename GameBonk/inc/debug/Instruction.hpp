@@ -7,12 +7,14 @@
 
 namespace GBonk
 {
+    class ROMReader;
+
     namespace Debug
     {
         class Instruction
         {
         public:
-            Instruction(const uint8_t* addr, unsigned int addr_offset);
+            Instruction(const ROMReader& r);
             Instruction(Instruction&&);
             Instruction(const Instruction&);
 
@@ -25,9 +27,9 @@ namespace GBonk
             std::string toString() const;
 
         private:
-            void decodeBitInstruction_(const uint8_t* addr);
-            void decodeGbInstruction_(const uint8_t* addr);
-            void decodeInstruction_(const uint8_t* addr);
+            void decodeBitInstruction_(const ROMReader& addr);
+            void decodeGbInstruction_(const ROMReader& addr);
+            void decodeInstruction_(const ROMReader& addr);
             unsigned int bc(unsigned int v) { bytecode_.push_back(v); return v; }
             unsigned int bc2(unsigned int v) { bytecode_.push_back(v & 0xFF); bytecode_.push_back((v >> 8) & 0xFF);  return v; }
 

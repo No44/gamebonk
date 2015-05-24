@@ -1,9 +1,14 @@
 #ifndef _GBONK_DEBUG_DEBUGGERHOST_HPP_
 #define _GBONK_DEBUG_DEBUGGERHOST_HPP_
 
-#include <fltk/Fl.H>
-#include <fltk/Fl_Window.H>
+#include <list>
 
+#include <FL/Fl.H>
+#include <FL/Fl_Window.H>
+
+
+#include "debug/Debugger.hpp"
+#include "debug/Instruction.hpp"
 
 namespace GBonk
 {
@@ -13,9 +18,22 @@ namespace GBonk
 
         class DebuggerHost : public Fl_Window
         {
-        public:
+            class SourceDisplay;
 
+
+        public:
+            DebuggerHost();
+
+            void open();
             void pumpEvents();
+            
+            Debugger* debugger() { return dbg_; }
+            void debugger(Debugger& d) { dbg_ = &d; }
+
+        private:
+            Debugger* dbg_;
+
+            SourceDisplay* srcView_;
         };
 
     }

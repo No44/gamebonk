@@ -17,6 +17,7 @@ namespace GBonk
             SCX_(m + 0xFF43),
             WY_(m + 0xFF4A),
             WX_(m + 0xFF4B),
+            LY_(m + 0xFF44),
             LYC_(m + 0xFF45)
         {
             spritePatternTable_.setAddr(m, 0x8000);
@@ -51,18 +52,29 @@ namespace GBonk
             windowTable_.setAddr(baseMem_ + window_tile_table_addresses[lcdc_->wdwTileTableAddrMode]);
         }
 
+        void VideoSystem::render()
+        {
+            driver_.render();
+        }
+
         static inline bool _skipsprite(int x, int y)
         {
           return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
         }
 
-        void VideoSystem::cheatDrawAll()
+        void VideoSystem::drawLine()
         {
-            for (int i = 0; i < ScreenHeight; ++i)
-                drawline(i);
+            drawLine(*LY_);
+            *LY_ = (*LY_ + 1) % ScanLines;
         }
 
-        void VideoSystem::drawline(int line)
+        void VideoSystem::drawAll()
+        {
+            for (int i = 0; i < ScreenHeight; ++i)
+                drawLine(i);
+        }
+
+        void VideoSystem::drawLine(int line)
         {
             Sprite result(ScreenWidth, 1);
             result.x = 0;

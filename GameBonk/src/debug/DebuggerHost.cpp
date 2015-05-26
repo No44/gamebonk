@@ -3,7 +3,6 @@
 #include <iomanip>
 
 #include <FL/Fl_Text_Buffer.H>
-#include <FL/Fl_Text_Display.H>
 
 #include "debug/DebuggerHost.hpp"
 
@@ -12,21 +11,6 @@ namespace GBonk
 
     namespace Debug
     {
-
-        class DebuggerHost::SourceDisplay : public Fl_Text_Display
-        {
-        public:
-            SourceDisplay(DebuggerHost& parent, int x, int y, int w, int h);
-            int handle(int ev) override;
-            void setInstructions(const std::vector<Instruction>& instr);
-
-        private:
-            void addInstructions_(const std::vector<Instruction>& instr);
-
-            std::vector<Instruction> displayed_;
-            DebuggerHost& host_;
-            friend class DebuggerHost;
-        };
 
         DebuggerHost::SourceDisplay::SourceDisplay(DebuggerHost& host, int x, int y, int w, int h)
             : Fl_Text_Display(x, y, w, h),
@@ -46,9 +30,11 @@ namespace GBonk
 
                 xy_to_rowcol(x, y, &row, &col);
                 std::cout << "Click released at " << row + mVScrollBar->value() - 1 << " " << col << std::endl;
-                if (col <= 1)
-                    host_.debugger()->setBreakpoint(displayed_[row + mVScrollBar->value()].addr());
-                // todo: set breakpoint at location
+                if (col <= 1 && row < displayed_.size())
+                {
+                    host_.debugger()->setBreakpoint(displayed_[row + mVScrollBar->value()].second.addr());
+                    // todo: visibly set breakpoint at location
+                }
             }
             int v =  Fl_Text_Display::handle(ev);
             if (ev == FL_MOUSEWHEEL)
@@ -71,16 +57,41 @@ namespace GBonk
             addInstructions_(ins);
         }
 
+        void DebuggerHost::SourceDisplay::setCurrent(const Instruction& ins)
+        {
+            Fl_Text_Buffer* buf = buffer();
+            
+            
+            
+        }
+
+        bool DebuggerHost::SourceDisplay::displays(const Instruction& ins) const
+        {
+            return std::binary_search(displayed_.begin(), displayed_.end(), ins,
+                [](const PosdIns& a, const PosdIns& b)
+            {
+                return a.second.addr() < b.second.addr();
+            });
+        }
+
         void DebuggerHost::SourceDisplay::addInstructions_(const std::vector<Instruction>& ins)
         {
             Fl_Text_Buffer* buf = buffer();
             std::stringstream lines;
+            int posLine = 0;
+
             for (auto& i : ins)
             {
-                lines << "  ";
-                lines << "[0x" << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << i.addr() << "]";
-                lines << " " << i.toString();
-                lines << '\n';
+                displayed_.push_back(std::make_pair(posLine, i));
+
+                std::stringstream line;
+                line << "  ";
+                line << "[0x" << std::uppercase << std::setfill('0') << std::setw(4) << std::hex << i.addr() << "]";
+                line << " " << i.toString();
+                line << '\n';
+                posLine += line.str().length();
+
+                lines << line.str();
             }
             buf->append(lines.str().c_str());
         }
@@ -140,6 +151,12 @@ namespace GBonk
             end();
 
             srcView_ = source;
+        }
+
+        void DebuggerHost::debugger(Debugger& d)
+        {
+            dbg_ = &d;
+            srcView_->setInstructions(d.getMoreInstructions(40));
         }
 
         void DebuggerHost::open()

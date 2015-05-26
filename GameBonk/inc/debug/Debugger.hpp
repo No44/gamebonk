@@ -27,6 +27,7 @@ namespace GBonk
             // called by debuggerhost
             void step();
             void cont();
+            void brk();
 
             // called by engine
             void run();
@@ -34,6 +35,8 @@ namespace GBonk
             std::vector<Instruction> getMoreInstructions(int amount);
 
         private:
+            void stepUpdateDisplay_();
+
             CPU& cpu_;
             DebuggerHost& host_;
             unsigned int nextInstrAddr_;

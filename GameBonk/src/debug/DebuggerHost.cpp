@@ -67,7 +67,7 @@ namespace GBonk
 
         bool DebuggerHost::SourceDisplay::displays(const Instruction& ins) const
         {
-            return std::binary_search(displayed_.begin(), displayed_.end(), ins,
+            return std::binary_search(displayed_.begin(), displayed_.end(), std::make_pair(0, ins),
                 [](const PosdIns& a, const PosdIns& b)
             {
                 return a.second.addr() < b.second.addr();

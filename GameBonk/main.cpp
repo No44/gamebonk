@@ -13,7 +13,7 @@ void engine()
     c.displayInfo();
 
     cpu.load(c);
-
+    cpu.prepareLaunch();
 
     GBonk::Debug::DebuggerHost host;
     GBonk::Debug::Debugger debug(host, cpu);
@@ -21,8 +21,13 @@ void engine()
     host.debugger(debug);
     host.open();
 
+    debug.brk();
     while (1)
+    {
+        debug.run();
         host.pumpEvents();
+        Sleep(33);
+    }
 
     c.close();
 }

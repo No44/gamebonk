@@ -28,7 +28,7 @@ namespace GBonk
 
         void Debugger::disableBreakpoint(unsigned int addr)
         {
-            auto it = std::upper_bound(breakpoints_.begin(), breakpoints_.end(), addr);
+            auto it = std::lower_bound(breakpoints_.begin(), breakpoints_.end(), addr);
             if (it == breakpoints_.end() || *it != addr)
                 return;
             breakpoints_.erase(it);

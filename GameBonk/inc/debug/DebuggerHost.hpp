@@ -21,6 +21,9 @@ namespace GBonk
         class DebuggerHost : public Fl_Window
         {
         public:
+            static const unsigned int Height = 550;
+            static const unsigned int Width = 500;
+
             class SourceDisplay : public Fl_Text_Display
             {
             public:
@@ -37,6 +40,7 @@ namespace GBonk
                 typedef std::pair<int, Instruction> PosdIns;
                 std::vector<PosdIns> displayed_;
                 DebuggerHost& host_;
+                int currentInsIdx_;
                 friend class DebuggerHost;
             };
 

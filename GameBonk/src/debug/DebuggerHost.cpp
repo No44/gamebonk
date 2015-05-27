@@ -1,8 +1,11 @@
 #include <iostream>
 #include <sstream>
 #include <iomanip>
+#include <cassert>
 
 #include <FL/Fl_Text_Buffer.H>
+
+
 
 #include "debug/DebuggerHost.hpp"
 
@@ -14,7 +17,8 @@ namespace GBonk
 
         DebuggerHost::SourceDisplay::SourceDisplay(DebuggerHost& host, int x, int y, int w, int h)
             : Fl_Text_Display(x, y, w, h),
-            host_(host)
+            host_(host),
+            currentInsIdx_(-1)
         {
         }
 
@@ -29,11 +33,25 @@ namespace GBonk
                 int col = 0;
 
                 xy_to_rowcol(x, y, &row, &col);
-                std::cout << "Click released at " << row + mVScrollBar->value() - 1 << " " << col << std::endl;
+                //std::cout << "Click released at " << row + mVScrollBar->value() - 1 << " " << col << std::endl;
                 if (col <= 1 && row < displayed_.size())
                 {
-                    host_.debugger()->setBreakpoint(displayed_[row + mVScrollBar->value()].second.addr());
-                    // todo: visibly set breakpoint at location
+                    int insIdx = row + mVScrollBar->value() - 1;
+                    PosdIns& ins = displayed_[insIdx];
+                    int pos = line_start(xy_to_position(x, y));
+                    if (!host_.debugger()->isBreakpointSet(ins.second.addr()))
+                    {
+                        host_.debugger()->setBreakpoint(ins.second.addr());
+                        if (currentInsIdx_ == -1 || displayed_[currentInsIdx_].first != pos)
+                            buffer()->replace(pos, pos + 1, "O");
+                    }
+                    else
+                    {
+                        host_.debugger()->disableBreakpoint(ins.second.addr());
+                        if (currentInsIdx_ == -1 || displayed_[currentInsIdx_].first != pos)
+                            buffer()->replace(pos, pos + 1, " ");
+                    }
+                    
                 }
             }
             int v =  Fl_Text_Display::handle(ev);
@@ -54,15 +72,29 @@ namespace GBonk
             Fl_Text_Buffer* buf = buffer();
 
             buf->remove(0, buf->length());
+            currentInsIdx_ = -1;
+            displayed_.clear();
             addInstructions_(ins);
+            setCurrent(ins[0]);
         }
 
         void DebuggerHost::SourceDisplay::setCurrent(const Instruction& ins)
         {
             Fl_Text_Buffer* buf = buffer();
+            auto it = std::lower_bound(displayed_.begin(), displayed_.end(), std::make_pair(0, ins),
+                [](const PosdIns& a, const PosdIns& b) {return a.second.addr() < b.second.addr(); });
+            assert(it->second.addr() == ins.addr());
             
-            
-            
+            buf->replace(it->first, it->first + 1, ">");
+            if (currentInsIdx_ != -1)
+            {
+                PosdIns& current = displayed_[currentInsIdx_];
+                if (host_.dbg_->isBreakpointSet(current.second.addr()))
+                    buf->replace(current.first, current.first + 1, "O");
+                else
+                    buf->replace(current.first, current.first + 1, " ");
+            }
+            currentInsIdx_ = it - displayed_.begin();
         }
 
         bool DebuggerHost::SourceDisplay::displays(const Instruction& ins) const
@@ -99,57 +131,13 @@ namespace GBonk
 
 
         DebuggerHost::DebuggerHost()
-            : Fl_Window(200, 500, "Debugger")
+            : Fl_Window(Width, Height, "Debugger")
         {
-            SourceDisplay* source = new SourceDisplay(*this, 20, 0, 180, 500);
+            SourceDisplay* source = new SourceDisplay(*this, 20, 5, 400, 495);
             Fl_Text_Buffer* b = new Fl_Text_Buffer();
-            const char *text =
-                "0\n"
-                "1\n"
-                "2\n"
-                "3\n"
-                "4\n"
-                "5\n"
-                "6\n"
-                "7\n"
-                "8\n"
-                "9\n"
-                "10\n"
-                "11\n"
-                "12\n"
-                "13\n"
-                "14\n"
-                "15\n"
-                "16\n"
-                "17\n"
-                "18\n"
-                "19\n"
-                "20\n"
-                "21\n"
-                "22\n"
-                "23\n"
-                "24\n"
-                "25\n"
-                "26\n"
-                "27\n"
-                "28\n"
-                "29\n"
-                "30\n"
-                "31\n"
-                "32\n"
-                "33\n"
-                "34\n"
-                "35\n"
-                "36\n"
-                "37\n"
-                "38\n"
-                "39\n"
-                "40\n"
-                ;
-            b->text(text);
             source->buffer(b);
+            source->textfont(FL_COURIER);
             end();
-
             srcView_ = source;
         }
 

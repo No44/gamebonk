@@ -1,4 +1,7 @@
 #include <algorithm>
+#include <chrono>
+#include <thread>
+#include <iostream>
 
 #include "CPU.hpp"
 #include "debug/DebuggerHost.hpp"
@@ -17,7 +20,8 @@ namespace GBonk
             nextInstrAddr_(cpu.registers_.pc),
             break_(true)
         {
-
+            host_.debugger(*this);
+            stepUpdateDisplay_();
         }
 
         void Debugger::setBreakpoint(unsigned int addr)
@@ -46,6 +50,7 @@ namespace GBonk
                 host_.srcView_->setInstructions(getMoreInstructions(40));
             }
             host_.srcView_->setCurrent(current);
+            host_.updateRegisters(cpu_.registers_);
         }
 
         void Debugger::step()
@@ -54,28 +59,58 @@ namespace GBonk
             stepUpdateDisplay_();
         }
 
-        void Debugger::brk()
-        {
-            break_ = true;
-        }
-
         void Debugger::cont()
         {
             break_ = false;
         }
 
+        void Debugger::brk()
+        {
+            break_ = true;
+            stepUpdateDisplay_();
+        }
+
+        void Debugger::toggleFlag(CPUFlags f)
+        {
+            unsigned int fv = static_cast<unsigned int>(f);
+
+            cpu_.registers_.AF.F ^= fv;
+            host_.updateRegisters(cpu_.registers_);
+        }
+
         void Debugger::run()
         {
-            if (break_)
-                return;
+            static const std::chrono::milliseconds eventPeriod{ 33 };
+            std::chrono::steady_clock::time_point eventTime = std::chrono::steady_clock::now() + eventPeriod;
+            GBonk::Video::Driver d;
 
-            cpu_.runOne();
-            if (std::binary_search(breakpoints_.begin(), breakpoints_.end(), cpu_.registers_.pc))
+            d.openWindow();
+
+            for (;;)
             {
-                break_ = true;
-                stepUpdateDisplay_();
+                if (!break_)
+                {
+                    cpu_.runOne();
+                    if (std::binary_search(breakpoints_.begin(), breakpoints_.end(), cpu_.registers_.pc))
+                    {
+                        break_ = true;
+                        host_.enable();
+                        stepUpdateDisplay_();
+                    }
+                    else if (std::chrono::system_clock::now() >= eventTime)
+                    {
+                        host_.pumpEvents();
+                        eventTime += eventPeriod;
+                    }
+                }
+                else
+                {
+                    host_.pumpEvents();
+                    d.pumpEvents();
+                    std::this_thread::sleep_for(eventPeriod);
+                }
             }
-        }
+         }
 
         std::vector<Instruction> Debugger::getMoreInstructions(int amount)
         {

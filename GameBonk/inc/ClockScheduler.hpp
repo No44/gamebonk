@@ -22,6 +22,7 @@ namespace GBonk
             Task(const Task&);
 
             bool operator<(const Task& t) const { return execDate_ < t.execDate_; }
+            bool operator>(const Task& t) const { return execDate_ > t.execDate_; }
 
         private:
             Callable callback_;
@@ -42,7 +43,7 @@ namespace GBonk
         uint64_t cyclesBeforeNextTask() const { assert(!tasks_.empty()); return tasks_.top().execDate_ - date_; }
 
     private:
-        std::priority_queue<Task> tasks_;
+        std::priority_queue<Task, std::vector<Task>, std::greater<Task>> tasks_;
         uint64_t date_;
     };
 

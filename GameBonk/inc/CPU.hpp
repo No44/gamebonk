@@ -2,12 +2,13 @@
 #define GBONK_CPU_HPP
 
 #include <cstdint>
+#include <chrono>
 
 #include "video/VideoSystem.hpp"
 #include "MMU.hpp"
 #include "IORegistersRepository.hpp"
 #include "ClockScheduler.hpp"
-#include "debug/Debugger.hpp"
+//#include "debug/Debugger.hpp"
 
 
 #define REGPAIR(FIRST, SECOND)                      \
@@ -45,24 +46,35 @@ struct _##FIRST##SECOND {                           \
 _##FIRST##SECOND FIRST##SECOND                      \
 
 
+
+
 namespace GBonk
 {
+    namespace Debug
+    {
+        class Debugger;
+    }
+
     class Cartridge;
+
+    enum class CPUFlags : unsigned int
+    {
+        Z = 1 << 7, // zero
+        N = 1 << 6, // subtract
+        H = 1 << 5, // half-carry
+        C = 1 << 4, // carry
+    };
 
     class CPU
     {
     public:
+        static const unsigned int CPU_FREQ;
+        static const unsigned int CYCLES_PER_MSEC;
+
         CPU();
 
         void load(Cartridge&);
 
-        enum class Flags : unsigned int
-        {
-            Z = 1 << 7, // zero
-            N = 1 << 6, // subtract
-            H = 1 << 5, // half-carry
-            C = 1 << 4, // carry
-        };
         struct Registers
         {
             REGPAIR(A, F);
@@ -90,26 +102,37 @@ namespace GBonk
         void prepareLaunch();
         void run();
         void runOne();
-        void halt() { }
-        void stop() { }
+        void runDuring(unsigned int cycles);
+        void halt() { /*todo*/ }
+        void stop() { /*todo*/ }
+
+        enum Keys
+        {
+            KEY_RIGHT = 0,
+            KEY_LEFT,
+            KEY_UP,
+            KEY_DOWN,
+            KEY_A,
+            KEY_B,
+            KEY_SELECT,
+            KEY_START
+        };
 
         enum InterruptId
         {
-            INT_VBLANK = 0x40,
-            INT_LCDC = 0x48,
-            INT_TIMER = 0x50,
-            INT_SERIAL = 0x58,
-            INT_P10 = 0x60,
+            INT_VBLANK = 0,
+            INT_LCDC,
+            INT_TIMER,
+            INT_SERIAL,
+            INT_P10
         };
+        static const unsigned int InterruptAddr[INT_P10 + 1];
+        static const unsigned int InterruptFlag[INT_P10 + 1];
+
         void interrupt(InterruptId interrupt);
-        // interrupts will be disabled after the next
-        // instruction is ran
-        void prepareDisableInterrupts() {}
+
         // immediatly disable interrupts
         void disableInterrupts();
-        // interrupts will be enabled after the next
-        // instruction is ran
-        void prepareEnableInterrupts() {}
         // immediatly enable interrupts
         void enableInterrupts();
 
@@ -122,21 +145,42 @@ namespace GBonk
     private:
         void cbDrawScanLine_();
         void cbVBlank_();
-        void cbTimerOverflow_();
+        void cbTimer_();
+        void cbDiv_();
 
         void launchSequence_();
 
         friend OpFormat runCurrentOp(CPU&);
 
         bool interruptMasterEnable_;
-        uint32_t interruptsEnabled_;
 
         IORegistersRepository ioregs_;
         MMU mmu_;
         Video::VideoSystem video_;
         Cartridge* game_;
         ClockScheduler sched_;
+
+        enum KeyOutPortIdx{
+            P14 = 0,
+            P15 = 1,
+        };
+        static const unsigned int KeyInputPortIdcs[2];
+        std::array<bool, 8> keys_;
+        std::chrono::steady_clock::time_point frameTime_;
         friend class Debug::Debugger;
+
+    private:
+        // IORegisters
+        uint8_t* P1_; // FF00
+        uint8_t* DIV_; // FF04
+        uint8_t* TIMA_; // FF05
+        uint8_t* TMA_; // FF06
+        uint8_t* TAC_; // FF07
+        
+        uint8_t* IF_; // FF0F
+        uint8_t* STAT_; // ff41
+        uint8_t* LY_; // FF44, current line
+        uint8_t* IE_; // FFFF
     };
 
 }

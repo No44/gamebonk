@@ -6,11 +6,13 @@
 
 #include "debug/MemoryDumper.hpp"
 #include "debug/Instruction.hpp"
+#include "CPU.hpp"
 
 namespace GBonk
 {
 
     class CPU;
+    enum class CPUFlags : unsigned int;
 
     namespace Debug
     {
@@ -28,6 +30,8 @@ namespace GBonk
             void step();
             void cont();
             void brk();
+            void toggleFlag(CPUFlags f);
+            void loadFrom(unsigned int addr) { nextInstrAddr_ = addr; }
 
             // called by engine
             void run();

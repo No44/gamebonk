@@ -18,26 +18,29 @@ void engine()
     GBonk::Debug::DebuggerHost host;
     GBonk::Debug::Debugger debug(host, cpu);
 
-    host.debugger(debug);
     host.open();
 
     debug.brk();
-    while (1)
-    {
+    //while (1)
+    //{
         debug.run();
-        host.pumpEvents();
-        Sleep(33);
-    }
+        // todo:mettre ca V dans dbg::run
+    //    host.pumpEvents();
+    //    Sleep(33);
+    //}
 
     c.close();
 }
 
 void start()
 {
+    bool b = GBonk::Video::Driver::Init();
+
     engine();
+    GBonk::Video::Driver::Shutdown();
     return;
 
-    bool b = GBonk::Video::Driver::Init();
+
 
     GBonk::CPU cpu;
     GBonk::Cartridge c;

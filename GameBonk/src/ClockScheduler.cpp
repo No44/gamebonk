@@ -22,7 +22,7 @@ namespace GBonk
     void ClockScheduler::reset()
     {
         date_ = 0;
-        tasks_.swap(std::priority_queue<Task>());
+        tasks_.swap(decltype(tasks_)());
     }
 
     void ClockScheduler::step()
@@ -36,7 +36,7 @@ namespace GBonk
         if (tasks_.empty())
             return;
 
-        while (tasks_.top().execDate_ >= date_)
+        while (date_ >= tasks_.top().execDate_)
         {
             tasks_.top().callback_();
             tasks_.pop();

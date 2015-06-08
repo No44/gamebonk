@@ -8,6 +8,7 @@
 #include <map>
 #include <sstream>
 #include <functional>
+#include <thread>
 
 #include "video/Driver.hpp"
 #include "debug/Instruction.hpp"
@@ -27,11 +28,11 @@ void OutputDebugString(const std::string& str)
 
 namespace GBonk
 {
-    static const unsigned int CPU_FREQ = 4194304;
+    const unsigned int CPU::CPU_FREQ = 4194304;
     static const unsigned int HSYNC_FREQ = 60;
+    const unsigned int CPU::CYCLES_PER_MSEC = CPU_FREQ / 1000;
 
-
-    static const unsigned int HSYNC_CYCLES = CPU_FREQ / HSYNC_FREQ;
+    static const unsigned int HSYNC_CYCLES = CPU::CPU_FREQ / HSYNC_FREQ;
 
     // Scanline refresh
     static const unsigned int SCANLINE_CYCLES = HSYNC_CYCLES / Video::VideoSystem::ScanLines;
@@ -40,9 +41,31 @@ namespace GBonk
     // VBlank lasts for
     static const unsigned int VBLANK_PERIOD_CYCLES = SCANLINE_CYCLES * (Video::VideoSystem::ScanLines - Video::VideoSystem::ScreenHeight);
 
+    const unsigned int CPU::InterruptAddr[INT_P10 + 1] = {
+        0x40, // VBLANK
+        0x48, // LCDC
+        0x50, // TIMER
+        0x58, // SERIAL
+        0x60, // P10
+    };
+    const unsigned int CPU::InterruptFlag[INT_P10 + 1] = {
+        0,
+        1,
+        1 << 1,
+        1 << 2,
+        1 << 3
+    };
+    // Cycles needed for each incrementation
+    static const unsigned int timer_freq[] =
+    { CPU::CPU_FREQ / 4096,
+    CPU::CPU_FREQ / 262144,
+    CPU::CPU_FREQ / 65536,
+    CPU::CPU_FREQ / 16384 };
+
+    const unsigned int KeyInputPortIdcs[2] = { 0, 4 };
+
     CPU::CPU()
         : interruptMasterEnable_(true),
-        interruptsEnabled_(0),
         video_(mmu_.memory())
     {
     }
@@ -58,19 +81,6 @@ namespace GBonk
         sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
     }
 
-    void CPU::cbVBlank_()
-    {
-        video_.render();
-        interrupt(INT_VBLANK);
-        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
-    }
-
-    void CPU::cbTimerOverflow_()
-    {
-        interrupt(INT_TIMER);
-        // todo: schedule
-    }
-
     void CPU::prepareLaunch()
     {
         {
@@ -81,16 +91,19 @@ namespace GBonk
         }
         launchSequence_();
         mmu_.setMBC(GBonk::AMBC::makeMBC(*game_));
+        frameTime_ = std::chrono::steady_clock::now();
     }
 
     inline void CPU::runOne()
     {
         //std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
+        /*
         {
             Debug::Instruction instr(ROMReader(*this, registers_.pc));
             std::cout << "[0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex << registers_.pc << "]";
             std::cout << instr.toString() << std::endl;
         }
+        */
         CPU::OpFormat f = runCurrentOp(*this);
 
         registers_.pc += f.bytes;
@@ -132,9 +145,28 @@ namespace GBonk
 
     void CPU::interrupt(InterruptId i)
     {
+        // todo: IF ?
+
+        // check if interrupt is allowed
+        if (interruptMasterEnable_ == false
+            || (*IE_ & InterruptFlag[i]) == 0)
+            return;
+
+        interruptMasterEnable_ = false;
         registers_.sp -= 2;
         writew(registers_.pc, registers_.sp);
-        registers_.pc = static_cast<uint32_t>(i);
+        registers_.pc = InterruptAddr[i];
+        // todo: verifier et setter les flags d'interrupt
+    }
+
+    void CPU::disableInterrupts()
+    {
+        interruptMasterEnable_ = false;
+    }
+
+    void CPU::enableInterrupts()
+    {
+        interruptMasterEnable_ = true;
     }
 
     unsigned int CPU::read(uint32_t addr)
@@ -149,10 +181,21 @@ namespace GBonk
 
     void CPU::ioregWrite(unsigned int& value, uint32_t addr)
     {
+        // VALUE HAS ALREADY BEEN WRITTEN TO MEMORY
         switch (addr & 0xFF)
         {
         case 0x00:
             // Joypad
+            //                Test for P15
+            // If P15 is selected, op will return 1
+            const int portidx = KeyInputPortIdcs[!!(*P1_ & (1 << 5))];
+            
+            *P1_ = 0;
+            // Set all keys that are pushed
+            for (int i = 0; i < 4; ++i)
+                *P1_ |= keys_[i + portidx] << i;
+            // Actually the GB expect pushed keys to be 0: invert
+            *P1_ = ~*P1_;
             break;
         case 0x04:
             // DIV
@@ -160,9 +203,19 @@ namespace GBonk
             break;
         case 0x05:
             // TIMA
+            if (*TIMA_ == 0)
+            {
+                *TIMA_ = *TMA_;
+                interrupt(INT_TIMER);
+            }
             break;
         case 0x06:
             // TMA
+            break;
+        case 0x07:
+            // TAC
+            if (*TAC_ & 4)
+                sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), timer_freq[*TAC_ & 3]));
             break;
         case 0x40:
             video_.updateLCDC();
@@ -197,10 +250,54 @@ namespace GBonk
         }
     }
 
+    void CPU::cbVBlank_()
+    {
+        static const std::chrono::milliseconds desired_frame_time{ 15 };
+        static const ClockCall call(ClockCall(std::bind(&CPU::cbVBlank_, this)));
+
+        interrupt(INT_VBLANK);
+        sched_.schedule(ClockTask(call, VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
+        // todo: measure how long it took since last VBlank interrupt
+        // that's a frame : at 60HZ / s it should have lasted 15ms.
+        // so sleep (15 - frame_length) ms
+        auto frameEnd = std::chrono::steady_clock::now();
+        std::chrono::milliseconds frameTimeLength = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameTime_);
+        std::chrono::milliseconds sleepDuration = desired_frame_time - frameTimeLength;
+
+        std::cout << "Frame begin: " << frameTime_.time_since_epoch().count() <<
+            " frame end: " << frameEnd.time_since_epoch().count() << 
+            " Desired time: " << desired_frame_time.count() << 
+            "Fame len: " << frameTimeLength.count() 
+            << "  Sleep duration: " << sleepDuration.count() << std::endl;
+
+        std::this_thread::sleep_for(sleepDuration);
+
+        video_.render();
+        frameTime_ = std::chrono::steady_clock::now();
+    }
+
+    void CPU::cbTimer_()
+    {
+        static const ClockCall call(std::bind(&CPU::cbTimer_, this));
+
+        if (*TAC_ & 4)
+        {
+            write((uint8_t)(*TIMA_ + 1), 0xFF05);
+            sched_.schedule(ClockTask(call, timer_freq[*TAC_ & 3]));
+        }
+    }
+
+    void CPU::cbDiv_()
+    {
+        static const unsigned int freq = CPU::CPU_FREQ / 16384;
+        static const ClockCall call(std::bind(&CPU::cbDiv_, this));
+
+        write(uint8_t(*DIV_ + 1), 0xFF04);
+        sched_.schedule(ClockTask(call, freq));
+    }
+
     void CPU::launchSequence_()
     {
-        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
-        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
         registers_.pc = 0x100;
         registers_.AF = 1;
         registers_.AF.F = 0xB0;
@@ -208,6 +305,17 @@ namespace GBonk
         registers_.DE = 0xD8;
         registers_.HL = 0x14D;
         registers_.sp = 0xFFFE;
+
+        // IOREG shortcuts
+        P1_ = mmu_.memory() + 0xFF00;
+        DIV_ = mmu_.memory() + 0xFF04;
+        TIMA_ = mmu_.memory() + 0xFF05;
+        TMA_ = mmu_.memory() + 0xFF06;
+        TAC_ = mmu_.memory() + 0xFF07;
+        IF_ = mmu_.memory() + 0xFF0F;
+        STAT_ = mmu_.memory() + 0xFF41;
+        LY_ = mmu_.memory() + 0xFF44;
+        IE_ = mmu_.memory() + 0xFFFF;
 
         // can probably turn that to regular write and let CPU write handle REG writes
         write(0, 0xFF05); // TIMA
@@ -241,13 +349,18 @@ namespace GBonk
         write(0x00, 0xFF4A);
         write(0x00, 0xFF4B);
         write(0x00, 0xFFFF);
+
+        // Set up timed callbacks
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbVBlank_, this)), VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDiv_, this)), CPU::CPU_FREQ / 16384));
     }
 
-#define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define FTOGGLE(FLAG) { r.AF.F ^= static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define FASSIGN(FLAG, V) { r.AF.F ^= (- !!(V) ^ r.AF.F) & static_cast<unsigned int>(CPU::Flags::FLAG); }
-#define FISSET(FLAG) (r.AF.F & static_cast<unsigned int>(CPU::Flags::FLAG))
+#define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPUFlags::FLAG); }
+#define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPUFlags::FLAG); }
+#define FTOGGLE(FLAG) { r.AF.F ^= static_cast<unsigned int>(CPUFlags::FLAG); }
+#define FASSIGN(FLAG, V) { r.AF.F ^= (- !!(V) ^ r.AF.F) & static_cast<unsigned int>(CPUFlags::FLAG); }
+#define FISSET(FLAG) (r.AF.F & static_cast<unsigned int>(CPUFlags::FLAG))
 #define _8BHCARRY(X, Y) ((((X) & 0xF) + ((Y) & 0xF)) & 0x10)
 #define _8BCARRY(X, Y) ((((X) & 0xFF) + ((Y)& 0xFF)) & 0x100)
 #define F8BCARRIES(X, Y) { FASSIGN(H, _8BHCARRY(X, Y)); FASSIGN(C, _8BCARRY(X, Y)); }
@@ -284,16 +397,16 @@ namespace GBonk
 #define _NOP() { return {4, 1}; }
 #define _HALT() { cpu.halt(); return {4, 1}; }
 #define _STOP() { cpu.stop(); return {4, 2}; }
-#define _DI_() { cpu.prepareDisableInterrupts(); return{4, 1}; }
-#define _EI() { cpu.prepareEnableInterrupts(); return {4, 1}; }
+#define _DI_() { cpu.disableInterrupts(); return{4, 1}; }
+#define _EI() { cpu.enableInterrupts(); return {4, 1}; }
 #define _RLC(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= lb; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _RLCMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= lb; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
-#define _RL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= !!(r.AF.F & (unsigned int)CPU::Flags::C); FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
-#define _RLMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= !!(r.AF.F & (unsigned int)CPU::Flags::C); cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _RL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST |= !!(r.AF.F & (unsigned int)CPUFlags::C); FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RLMEM(DST, LEN, CYCLES) {uint32_t v = cpu.read(DST); uint32_t lb = v >> 7; v <<= 1; v |= !!(r.AF.F & (unsigned int)CPUFlags::C); cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
 #define _RRC(DST, LEN, CYCLES) {uint32_t fb = (DST) & 1; DST >>= 1; DST |= fb << 7; FASSIGN(C, fb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
 #define _RRCMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= fb << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
-#define _RR(DST, LEN, CYCLES) { uint32_t fb = (DST) & 1; DST >>= 1; DST |= (!!(r.AF.F & (unsigned int)CPU::Flags::C)) << 7; FASSIGN(C, fb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
-#define _RRMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= (!!(r.AF.F & (unsigned int)CPU::Flags::C)) << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
+#define _RR(DST, LEN, CYCLES) { uint32_t fb = (DST) & 1; DST >>= 1; DST |= (!!(r.AF.F & (unsigned int)CPUFlags::C)) << 7; FASSIGN(C, fb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
+#define _RRMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t fb = (v) & 1; v >>= 1; v |= (!!(r.AF.F & (unsigned int)CPUFlags::C)) << 7; cpu.write(v, DST); FASSIGN(C, fb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {CYCLES, LEN};}
 #define _SL(DST, LEN, CYCLES) { uint32_t lb = (unsigned int)(DST) >> 7; DST <<= 1; DST &= ~1; FASSIGN(C, lb); FASSIGN(Z, !DST); FRESET(N); FRESET(H); return {4, 1}; }
 #define _SLMEM(DST, LEN, CYCLES) { uint32_t v = cpu.read(DST); uint32_t lb = (unsigned int)(v) >> 7; v <<= 1; v &= ~1; cpu.write(v, DST); FASSIGN(C, lb); FASSIGN(Z, !v); FRESET(N); FRESET(H); return {4, 1}; }
 #define _SRA(DST, LEN, CYCLES) {DST = (int8_t)(DST) >> 1; uint32_t fb = (DST) & 1; FASSIGN(C, fb); FASSIGN(Z, !(DST)); FRESET(N); FRESET(H); return {CYCLES, LEN}; }
@@ -328,15 +441,15 @@ namespace GBonk
 #define _RETZ() { if (!FISSET(Z)) return {8, 1}; _RET() }
 #define _RETNC() { if (FISSET(C)) return {8, 1}; _RET() }
 #define _RETC() { if (!FISSET(C)) return {8, 1}; _RET() }
-#define _RETI() { cpu.prepareEnableInterrupts(); _RET() }
+#define _RETI() { cpu.enableInterrupts(); _RET() }
 
     static inline CPU::OpFormat DAA(CPU& cpu, CPU::Registers& r)
     {
         uint32_t upper = (r.AF.A & 0xF0) >> 8;
         uint32_t lower = (r.AF.A & 0xF);
-        bool C = !!(r.AF.F & (unsigned int)CPU::Flags::C);
-        bool H = !!(r.AF.F & (unsigned int)CPU::Flags::H);
-        bool N = !!(r.AF.F & (unsigned int)CPU::Flags::N);
+        bool C = !!(r.AF.F & (unsigned int)CPUFlags::C);
+        bool H = !!(r.AF.F & (unsigned int)CPUFlags::H);
+        bool N = !!(r.AF.F & (unsigned int)CPUFlags::N);
 
         if (!N)
         {
@@ -761,15 +874,15 @@ namespace GBonk
       case 0x85: _ADD8(r.AF.A, r.HL.L, 1, 4);
       case 0x86: _ADD8(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xC6: _ADD8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
-      case 0x8F: _ADD8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x88: _ADD8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x89: _ADD8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8A: _ADD8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8B: _ADD8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8C: _ADD8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8D: _ADD8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x8E: _ADD8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
-      case 0xCE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
+      case 0x8F: _ADD8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x88: _ADD8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x89: _ADD8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x8A: _ADD8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x8B: _ADD8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x8C: _ADD8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x8D: _ADD8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x8E: _ADD8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 8);
+      case 0xCE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPUFlags::C), 2, 8);
       case 0x97: _SUB8(r.AF.A, r.AF.A, 1, 4);
       case 0x90: _SUB8(r.AF.A, r.BC.B, 1, 4);
       case 0x91: _SUB8(r.AF.A, r.BC.C, 1, 4);
@@ -779,15 +892,15 @@ namespace GBonk
       case 0x95: _SUB8(r.AF.A, r.HL.L, 1, 4);
       case 0x96: _SUB8(r.AF.A, cpu.read(r.HL), 1, 8);
       case 0xD6: _SUB8(r.AF.A, cpu.read(r.pc + 1), 2, 8);
-      case 0x9F: _SUB8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x98: _SUB8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x99: _SUB8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9A: _SUB8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9B: _SUB8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9C: _SUB8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9D: _SUB8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 4);
-      case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 1, 8);
-      case 0xDE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPU::Flags::C), 2, 8);
+      case 0x9F: _SUB8(r.AF.A, r.AF.A + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x98: _SUB8(r.AF.A, r.BC.B + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x99: _SUB8(r.AF.A, r.BC.C + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x9A: _SUB8(r.AF.A, r.DE.D + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x9B: _SUB8(r.AF.A, r.DE.E + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x9C: _SUB8(r.AF.A, r.HL.H + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x9D: _SUB8(r.AF.A, r.HL.L + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 4);
+      case 0x9E: _SUB8(r.AF.A, cpu.read(r.HL) + !!(r.AF.F & (unsigned int)CPUFlags::C), 1, 8);
+      case 0xDE: _ADD8(r.AF.A, cpu.read(r.pc + 1) + !!(r.AF.F & (unsigned int)CPUFlags::C), 2, 8);
       case 0xA7: _AND(r.AF.A, r.AF.A, 1, 4);
       case 0xA0: _AND(r.AF.A, r.BC.B, 1, 4);
       case 0xA1: _AND(r.AF.A, r.BC.C, 1, 4);

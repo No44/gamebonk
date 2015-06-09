@@ -62,7 +62,7 @@ namespace GBonk
     CPU::CPU_FREQ / 65536,
     CPU::CPU_FREQ / 16384 };
 
-    const unsigned int KeyInputPortIdcs[2] = { 0, 4 };
+    const unsigned int CPU::KeyInputPortIdcs[2] = { 0, 4 };
 
     CPU::CPU()
         : interruptMasterEnable_(true),
@@ -184,7 +184,7 @@ namespace GBonk
         // VALUE HAS ALREADY BEEN WRITTEN TO MEMORY
         switch (addr & 0xFF)
         {
-        case 0x00:
+        case 0x00: {
             // Joypad
             //                Test for P15
             // If P15 is selected, op will return 1
@@ -196,7 +196,7 @@ namespace GBonk
                 *P1_ |= keys_[i + portidx] << i;
             // Actually the GB expect pushed keys to be 0: invert
             *P1_ = ~*P1_;
-            break;
+            break; }
         case 0x04:
             // DIV
             value = 0;

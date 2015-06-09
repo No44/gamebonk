@@ -68,7 +68,7 @@ namespace GBonk
       unsigned int contentSize = buf.st_size;
       content_ = new uint8_t[contentSize];
       std::memset(content_, 0, contentSize);
-      ssize_t bytesRead = ::read(fd, content, contentSize);
+      ssize_t bytesRead = ::read(fd, content_, contentSize);
       ::close(fd);
 
       load_();

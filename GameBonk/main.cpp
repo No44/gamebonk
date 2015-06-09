@@ -2,7 +2,7 @@
 #include "Cartridge.hpp"
 #include "CPU.hpp"
 #include "debug/DebuggerHost.hpp"
-#include "Debug/Debugger.hpp"
+#include "debug/Debugger.hpp"
 
 void engine()
 {

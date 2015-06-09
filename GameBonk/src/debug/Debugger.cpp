@@ -97,7 +97,7 @@ namespace GBonk
                         host_.enable();
                         stepUpdateDisplay_();
                     }
-                    else if (std::chrono::system_clock::now() >= eventTime)
+                    else if (std::chrono::steady_clock::now() >= eventTime)
                     {
                         host_.pumpEvents();
                         eventTime += eventPeriod;

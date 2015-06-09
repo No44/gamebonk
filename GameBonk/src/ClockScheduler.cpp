@@ -22,7 +22,8 @@ namespace GBonk
     void ClockScheduler::reset()
     {
         date_ = 0;
-        tasks_.swap(decltype(tasks_)());
+        auto empty = decltype(tasks_)();
+        tasks_.swap(empty);
     }
 
     void ClockScheduler::step()

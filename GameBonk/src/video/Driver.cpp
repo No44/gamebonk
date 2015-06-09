@@ -1,6 +1,10 @@
+#include <cstring>
+#include <exception>
+#include <string>
 #include <iostream>
 
-#include <SDL/SDL.h>
+
+#include <SDL2/SDL.h>
 
 #include "video/VideoSystem.hpp"
 #include "video/Driver.hpp"
@@ -122,10 +126,10 @@ namespace GBonk
         {
             win_ = SDL_CreateWindow("GameBonk", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, VideoSystem::ScreenWidth, VideoSystem::ScreenHeight, SDL_WINDOW_SHOWN);
             if (!win_)
-                throw std::exception("SDL_CreateWindow: error");
+                throw std::runtime_error("SDL_CreateWindow: error");
             rend_ = SDL_CreateRenderer(win_, -1, SDL_RENDERER_ACCELERATED);
             if (!rend_)
-                throw std::exception("SDL_CreateRenderer: error");
+                throw std::runtime_error("SDL_CreateRenderer: error");
             screenTex_ = SDL_CreateTextureFromSurface(rend_, screenSurface_);
         }
 

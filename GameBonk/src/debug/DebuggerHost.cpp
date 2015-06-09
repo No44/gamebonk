@@ -223,7 +223,7 @@ namespace GBonk
         {
             Fl_Text_Buffer* buf = buffer();
             std::stringstream lines;
-            int posLine = 0;
+            int posLine = buf->length();
 
             for (auto& i : ins)
             {

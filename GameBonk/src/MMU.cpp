@@ -42,6 +42,9 @@ namespace GBonk
             if (addr < 0xDDFF)
                 systemMem_[addr + 0x2000] = value;
             return;
+        case 0x8000:
+        case 0x9000:
+            addr = addr;
         default:
             systemMem_[addr] = value;
             return;
@@ -78,8 +81,10 @@ namespace GBonk
                 systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             }
             return;
+        case 0x8000:
+        case 0x9000:
+            addr = addr;
         default:
-            // todo: a garder ?
             systemMem_[addr] = value & 0xFF;
             systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             return;

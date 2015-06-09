@@ -84,10 +84,7 @@ namespace GBonk
             uint16_t sp;
             uint16_t pc;
         };
-        struct Clock {
-            uint64_t m;
-            uint64_t t;
-        };
+
         // returns instruction's length.
         // should be added to PC to get the next instruction.
         struct OpFormat {
@@ -96,8 +93,7 @@ namespace GBonk
         };
 
         Registers registers_;
-        Clock last_instr_;
-        Clock globalClock_;
+
 
         void prepareLaunch();
         void run();

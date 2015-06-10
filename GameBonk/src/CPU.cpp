@@ -66,6 +66,7 @@ namespace GBonk
 
     CPU::CPU()
         : interruptMasterEnable_(true),
+        mmu_(),
         video_(mmu_.memory())
     {
     }

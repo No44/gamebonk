@@ -1,6 +1,7 @@
 #ifndef GBONK_MMU_HPP
 #define GBONK_MMU_HPP
 
+#include <iostream>
 #include <cstdint>
 
 #include "MemoryBankController1.hpp"

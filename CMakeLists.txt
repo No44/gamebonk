@@ -7,7 +7,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 include_directories(GameBonk/inc/)
 
 add_executable(gamebonk
-  ./GameBonk/inc/IORegistersRepository.hpp
   ./GameBonk/inc/MemoryBankController1.hpp
   ./GameBonk/inc/video/Driver.hpp
   ./GameBonk/inc/video/TilePatternTable.hpp
@@ -49,7 +48,7 @@ set(GCC_COVERAGE_COMPILE_FLAGS "-std=gnu++11")
 #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 add_definitions(${GCC_COVERAGE_COMPILE_FLAGS})
 
-message(STATUS "${SDL2_LIBRARY}")
+set(CMAKE_BUILD_TYPE "Debug")
 
 include_directories(${SDL2_INCLUDE_DIRS} ${FLTK_INCLUDE_DIRS})
 target_link_libraries(gamebonk ${FLTK_LIBRARIES} dl ${SDL2_LIBRARY})

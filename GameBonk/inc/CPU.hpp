@@ -150,7 +150,6 @@ namespace GBonk
 
         bool interruptMasterEnable_;
 
-        IORegistersRepository ioregs_;
         MMU mmu_;
         Video::VideoSystem video_;
         Cartridge* game_;

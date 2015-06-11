@@ -25,6 +25,7 @@ namespace GBonk
             TilePatternTable();
             void setAddr(const uint8_t* baseAddr, uint32_t taddr_offset);
             Sprite getSprite(int tileId, const Palette&);
+            void invalidate();
             void setPalette();
 
         private:

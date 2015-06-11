@@ -57,6 +57,17 @@ namespace GBonk
             driver_.render();
         }
 
+        void VideoSystem::dmaTransfer(unsigned int dma)
+        {
+            std::cerr << std::hex << dma << std::endl;
+            throw std::runtime_error("not implemented but now I have an example");
+        }
+
+        void VideoSystem::setPalette(PaletteId id, const Palette& p)
+        {
+            palettes_[id] = p;
+        }
+
         static inline bool _skipsprite(int x, int y)
         {
           return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
@@ -70,8 +81,17 @@ namespace GBonk
 
         void VideoSystem::drawAll()
         {
-            for (int i = 0; i < ScreenHeight; ++i)
-                drawLine(i);
+            Sprite s(ScreenWidth, ScreenHeight);
+            s.x = 0;
+            s.y = 0;
+            tilePatternTable_.invalidate();
+            buildBackground_();
+
+            for (int y = 0; y < ScreenHeight; ++y)
+            {
+                std::memcpy(&s[y * ScreenWidth], &backgroundMap_[y * fbwidth], ScreenWidth * sizeof(unsigned int));
+            }
+            driver_.draw(s);
         }
 
         void VideoSystem::drawLine(int line)
@@ -113,8 +133,7 @@ namespace GBonk
             spritePrioCount[attr.priority]++;
           }
           */
-
-          unsigned int spritesBackgroundCount = 0;
+            
           if (lcdc_->backgroundDisplay)
           {
             if (line == 0)
@@ -126,8 +145,7 @@ namespace GBonk
             for (unsigned int i = 0; i < ScreenWidth; ++i)
             {
                 unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
-                if (pixel != 0x000000FF)
-                    result.set(i, 0, pixel);
+                result.set(i, 0, pixel);
             }
           }
           driver_.draw(result);
@@ -137,12 +155,19 @@ namespace GBonk
         {
           for (int y = 0; y < TileRows; y++)
           {
-            unsigned int line = y * fbwidth;
             for (int x=  0; x < TileCols; x++)
             {
               unsigned int tileId = backgroundTable_.tileId(x, y);
-              Sprite s = tilePatternTable_.getSprite(tileId, palettes_[0]);
-              std::memcpy(&backgroundMap_[line + x*TilePixSize], &s[0], s.width() * s.height());
+              Sprite s = tilePatternTable_.getSprite(tileId, palettes_[PAL_BG]);
+
+              // todo: bug si sprites en ;ode 8*16
+              int by = y * TilePixSize;
+              int bx = x * TilePixSize;
+              int py = 0;
+              for (; py < s.height(); ++by, ++py)
+              {
+                  std::memcpy(&backgroundMap_[by * fbwidth + bx], &s[py * s.width()], s.width() * sizeof(unsigned int));
+              }
             }
           }
         }

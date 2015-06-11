@@ -16,7 +16,7 @@ namespace GBonk
             spriteMode_(_8x8)
         {
             built_.resize(tileCount_);
-            std::fill(built_.begin(), built_.end(), false);
+            invalidate();
             pixels_.resize(tileCount_ * pixpertile_);
         }
 
@@ -30,25 +30,43 @@ namespace GBonk
             addr_ = baseAddr + addr_off;
         }
 
+        void TilePatternTable::invalidate()
+        {
+            std::fill(built_.begin(), built_.end(), false);
+        }
+
         Sprite TilePatternTable::getSprite(int tileId, const Palette& p)
         {
             int tileidx = (firstSpriteIdx_ + tileId) & spriteMode_;
 
             assert(tileidx <= 0xFF);
-            if (!built_[tileidx] == 0)
+            if (built_[tileidx] == false)
             {
                 buildSprite_(tileidx);
                 if (spriteMode_ == _8x16 && !built_[tileidx + 1])
                     buildSprite_(tileidx + 1);
             }
             
-            Sprite result(&pixels_[tileidx * pixpertile_], modeW_, modeH_);
+            Sprite result(modeW_, modeH_);
+            int pidx = tileidx * pixpertile_;
+            
+            for (int y = 0; y < modeH_; ++y)
+            {
+                for (int x = 0; x < modeW_; ++x)
+                {
+                    result.set(x, y, p[pixels_[pidx++]]);
+                }
+            }
+            
+
+            /*
             for (unsigned int y = 0; y < modeH_; y++)
             {
                 unsigned int line = y * 8;
                 for (unsigned int x = 0; x < modeW_; x++)
                     result[line + x] = p[result[line + x]];
             }
+            */
             return result;
         }
 
@@ -56,14 +74,15 @@ namespace GBonk
         {
             const uint8_t* patternStart = addr_ + (tileSize_ * idx);
             unsigned int pixIdx = idx * pixpertile_;
-
+            
+            // 
             for (int patternIdx = 0; patternIdx < tileSize_; patternIdx += 2)
             {
                 for (int bit = 7; bit >= 0; bit--)
                 {
                     unsigned int colorId = ((patternStart[patternIdx] & (1 << bit)) >> bit)
                         | ((patternStart[patternIdx + 1] & (1 << bit)) >> bit) << 1;
-                    pixels_[pixIdx] = colorId;
+                    pixels_[pixIdx++] = colorId;
                 }
             }
             built_[idx] = true;

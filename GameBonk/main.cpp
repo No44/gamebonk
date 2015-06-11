@@ -21,13 +21,9 @@ void engine()
     host.open();
 
     debug.brk();
-    //while (1)
-    //{
-        debug.run();
-        // todo:mettre ca V dans dbg::run
-    //    host.pumpEvents();
-    //    Sleep(33);
-    //}
+
+    debug.run();
+
 
     c.close();
 }

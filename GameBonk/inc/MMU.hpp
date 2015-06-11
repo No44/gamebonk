@@ -18,7 +18,7 @@ namespace GBonk
         ~MMU();
 
         static const uint32_t TOTAL_ADDRESSABLE_MEMORY = 0xFFFF;
-        static const uint32_t INTERNAL_RAM_WTF = 0xFF80;
+        static const uint32_t INTERNAL_RAM_2 = 0xFF80;
         static const uint32_t IO_PORTS = 0xFF00;
         static const uint32_t SPRITE_ATTRIB_MEMORY = 0xFE00;
         static const uint32_t INTERNAL_RAM_ECHO = 0xE000;

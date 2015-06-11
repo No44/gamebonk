@@ -332,6 +332,11 @@ namespace GBonk
             case 0x86: _RES("0", "(HL)");
             case 0x9E: _RES("3", "(HL)");
             case 0xBE: _RES("7", "(HL)");
+            case 0xBF: _RES("7", "A");
+            case 0xFF: _SET("7", "A");
+            default:
+                std::cerr << "Uninplemented OP " << std::hex << std::uppercase << addr[0] << std::endl;
+                throw std::runtime_error("Unimplemented OP " + std::to_string(addr[0]));
             }
         }
 

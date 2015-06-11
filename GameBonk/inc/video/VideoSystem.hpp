@@ -28,6 +28,16 @@ namespace GBonk
             void drawAll();
             void drawLine();
             void drawLine(int line);
+            void dmaTransfer(unsigned int dma);
+
+            enum PaletteId
+            {
+                PAL_OBJ0 = 0,
+                PAL_OBJ1,
+                PAL_BG,
+                __PAL_COUNT,
+            };
+            void setPalette(PaletteId, const Palette&);
 
             static const unsigned int ScreenWidth = 160;
             static const unsigned int ScreenHeight = 144;
@@ -78,7 +88,7 @@ namespace GBonk
             TileTable        backgroundTable_;
             TileTable        windowTable_;
 
-            Palette palettes_[2];
+            Palette palettes_[__PAL_COUNT];
 
             std::array<unsigned int, 256*256> backgroundMap_;
         };

@@ -6,10 +6,7 @@
 
 #include "video/VideoSystem.hpp"
 #include "MMU.hpp"
-#include "IORegistersRepository.hpp"
 #include "ClockScheduler.hpp"
-//#include "debug/Debugger.hpp"
-
 
 #define REGPAIR(FIRST, SECOND)                      \
 struct _##FIRST##SECOND {                           \
@@ -175,6 +172,11 @@ namespace GBonk
         uint8_t* IF_; // FF0F
         uint8_t* STAT_; // ff41
         uint8_t* LY_; // FF44, current line
+        uint8_t* LYC_; // ff45
+        uint8_t* DMA_; // ff46
+        uint8_t* BGP_; // ff47
+        uint8_t* OBP0_; // ff48
+        uint8_t* OBP1_; // ff49
         uint8_t* IE_; // FFFF
     };
 

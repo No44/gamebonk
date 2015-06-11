@@ -76,11 +76,6 @@ namespace GBonk
         game_ = &game;
     }
 
-    void CPU::cbDrawScanLine_()
-    {
-        video_.drawLine();
-        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
-    }
 
     void CPU::prepareLaunch()
     {
@@ -180,6 +175,30 @@ namespace GBonk
         return mmu_.readw(addr);
     }
 
+    static inline /*constexpr*/ unsigned int makeShade(unsigned int comp)
+    {
+        unsigned int shade =
+            (0xFF << 24)
+            | (comp << 16)
+            | (comp << 8)
+            | comp;
+
+        return shade;
+    }
+
+    static inline Video::Palette decodePalette(unsigned int shades)
+    {
+        static const unsigned int greys[4] = {0xFFFFFFFF, makeShade((2*0xFF)/3), makeShade(0xFF/3), 0xFF000000};
+        static const unsigned int mask = 3;
+        Video::Palette res;
+        
+        res[0] = greys[shades & mask];
+        res[1] = greys[(shades & (mask << 2)) >> 2];
+        res[2] = greys[(shades & (mask << 4)) >> 4];
+        res[3] = greys[(shades & (mask << 6)) >> 6];
+        return res;
+    }
+
     void CPU::ioregWrite(unsigned int& value, uint32_t addr)
     {
         // VALUE HAS ALREADY BEEN WRITTEN TO MEMORY
@@ -221,6 +240,22 @@ namespace GBonk
         case 0x40:
             video_.updateLCDC();
             break;
+        case 0x46:
+            // DMA
+            video_.dmaTransfer(*DMA_);
+            break;
+        case 0x47:
+            // BGP
+            video_.setPalette(Video::VideoSystem::PAL_BG, decodePalette(*BGP_));
+            break;
+        case 0x48:
+            // OBP0
+            video_.setPalette(Video::VideoSystem::PAL_OBJ0, decodePalette(*OBP0_));
+            break;
+        case 0x49:
+            // OBP1
+            video_.setPalette(Video::VideoSystem::PAL_OBJ0, decodePalette(*OBP1_));
+            break;
         };
     }
 
@@ -251,6 +286,20 @@ namespace GBonk
         }
     }
 
+    void CPU::cbDrawScanLine_()
+    {
+        video_.drawLine();
+        sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
+        if (*LY_ == *LYC_)
+        {
+            *STAT_ |= 1 << 2; // set coincidence flag
+            if (*STAT_ & (1 << 6))
+                interrupt(INT_LCDC);
+        }
+        else
+            *STAT_ &= ~(1 << 2); // unset coincidence flag
+    }
+
     void CPU::cbVBlank_()
     {
         static const std::chrono::milliseconds desired_frame_time{ 15 };
@@ -258,18 +307,18 @@ namespace GBonk
 
         interrupt(INT_VBLANK);
         sched_.schedule(ClockTask(call, VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
-        // todo: measure how long it took since last VBlank interrupt
-        // that's a frame : at 60HZ / s it should have lasted 15ms.
-        // so sleep (15 - frame_length) ms
+
         auto frameEnd = std::chrono::steady_clock::now();
         std::chrono::milliseconds frameTimeLength = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameTime_);
         std::chrono::milliseconds sleepDuration = desired_frame_time - frameTimeLength;
 
+        /*
         std::cout << "Frame begin: " << frameTime_.time_since_epoch().count() <<
             " frame end: " << frameEnd.time_since_epoch().count() << 
             " Desired time: " << desired_frame_time.count() << 
             "Fame len: " << frameTimeLength.count() 
             << "  Sleep duration: " << sleepDuration.count() << std::endl;
+        */
 
         std::this_thread::sleep_for(sleepDuration);
 
@@ -316,6 +365,11 @@ namespace GBonk
         IF_ = mmu_.memory() + 0xFF0F;
         STAT_ = mmu_.memory() + 0xFF41;
         LY_ = mmu_.memory() + 0xFF44;
+        LYC_ = mmu_.memory() + 0xFF45;
+        DMA_ = mmu_.memory() + 0xFF46;
+        BGP_ = mmu_.memory() + 0xFF47;
+        OBP0_ = mmu_.memory() + 0xFF48;
+        OBP1_ = mmu_.memory() + 0xFF49;
         IE_ = mmu_.memory() + 0xFFFF;
 
         // can probably turn that to regular write and let CPU write handle REG writes
@@ -729,9 +783,11 @@ namespace GBonk
       case 0x86: _RESMEM((r.HL), 0, 2, 16);
       case 0x9E: _RESMEM((r.HL), 3, 2, 16);
       case 0xBE: _RESMEM((r.HL), 7, 2, 16);
+      case 0xBF: _RES(r.AF.A, 7, 2, 8);
+      case 0xFF: _SET(r.AF.A, 7, 2, 8);
       default:
           std::cerr << "Uninplemented CB op: " << std::hex << op << std::endl;
-          abort();
+          throw std::runtime_error("BITOP uninplemented");
       }
       return{ 4, 2 }; // todo: ?
     }

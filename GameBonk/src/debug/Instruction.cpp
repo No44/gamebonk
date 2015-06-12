@@ -1,6 +1,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include <stdexcept>
 
 #include "debug/Instruction.hpp"
 #include "ROMReader.hpp"
@@ -85,11 +86,9 @@ namespace GBonk
             case 0x28:
             case 0x30:
             case 0x38:
-                //std::cerr << "adding " << std::hex << addr_ << std::dec << "," << len_ << "," << (int)int8_t(bytecode_[1] & 0xFF) << " " << std::hex << bytecode_[1] << std::endl;
-                //std::getchar();
             {
                 int add = (int8_t)bytecode_[1] + (int)addr_ + (int)len_;
-                builder << " ; 0x" << std::hex << add;
+                builder << " ; 0x" << std::uppercase << std::hex << add;
                 break;
             }
             default:

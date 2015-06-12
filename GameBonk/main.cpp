@@ -9,7 +9,7 @@ void engine()
     GBonk::CPU cpu;
     GBonk::Cartridge c;
 
-    c.openFile("games/tetris.gb");
+    c.openFile("games/tennis.gb");
     c.displayInfo();
 
     cpu.load(c);

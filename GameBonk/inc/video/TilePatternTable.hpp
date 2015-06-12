@@ -16,15 +16,9 @@ namespace GBonk
         class TilePatternTable
         {
         public:
-            enum SpriteMode
-            {
-                _8x16 = 0xFE, // 8x16 ignores least significant bit and treats it as 0
-                _8x8 = 0xFF
-            };
-
             TilePatternTable();
             void setAddr(const uint8_t* baseAddr, uint32_t taddr_offset);
-            Sprite getSprite(int tileId, const Palette&);
+            Sprite getSprite(int tileId, const Palette&, Sprite::SizeMode = Sprite::_8x8);
             void invalidate();
             void setPalette();
 
@@ -40,11 +34,10 @@ namespace GBonk
             std::vector<uint32_t> pixels_;
             
             int firstSpriteIdx_;
-            int modeW_;
-            int modeH_;
-            SpriteMode spriteMode_;
-            
-        };
+            static const unsigned int spriteModeMask_[2];
+            static const unsigned int spriteModeHeight_[2];
+
+       };
 
 
     }

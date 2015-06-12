@@ -8,12 +8,12 @@ namespace GBonk
     namespace Video
     {
 
+        const unsigned int TilePatternTable::spriteModeMask_[2] = {0xFF, 0xFE};
+        const unsigned int TilePatternTable::spriteModeHeight_[2] = { 8, 16 };
+
         TilePatternTable::TilePatternTable()
             : addr_(nullptr),
-            firstSpriteIdx_(0),
-            modeW_(8),
-            modeH_(8),
-            spriteMode_(_8x8)
+            firstSpriteIdx_(0)
         {
             built_.resize(tileCount_);
             invalidate();
@@ -35,38 +35,30 @@ namespace GBonk
             std::fill(built_.begin(), built_.end(), false);
         }
 
-        Sprite TilePatternTable::getSprite(int tileId, const Palette& p)
+        Sprite TilePatternTable::getSprite(int tileId, const Palette& p, Sprite::SizeMode spriteMode_)
         {
-            int tileidx = (firstSpriteIdx_ + tileId) & spriteMode_;
+            int tileidx = (firstSpriteIdx_ + tileId) & spriteModeMask_[spriteMode_];
 
-            assert(tileidx <= 0xFF);
+            assert(tileidx < 0xFF && tileidx >= 0);
             if (built_[tileidx] == false)
             {
                 buildSprite_(tileidx);
-                if (spriteMode_ == _8x16 && !built_[tileidx + 1])
+                if (spriteMode_ == Sprite::_8x16 && !built_[tileidx + 1])
                     buildSprite_(tileidx + 1);
             }
             
-            Sprite result(modeW_, modeH_);
+            // Sprites are always 8 pixels wide
+            Sprite result(8, spriteModeHeight_[spriteMode_]);
             int pidx = tileidx * pixpertile_;
             
-            for (int y = 0; y < modeH_; ++y)
+            for (int y = 0; y < spriteModeHeight_[spriteMode_]; ++y)
             {
-                for (int x = 0; x < modeW_; ++x)
+                for (int x = 0; x < 8; ++x)
                 {
                     result.set(x, y, p[pixels_[pidx++]]);
                 }
             }
-            
 
-            /*
-            for (unsigned int y = 0; y < modeH_; y++)
-            {
-                unsigned int line = y * 8;
-                for (unsigned int x = 0; x < modeW_; x++)
-                    result[line + x] = p[result[line + x]];
-            }
-            */
             return result;
         }
 
@@ -75,7 +67,6 @@ namespace GBonk
             const uint8_t* patternStart = addr_ + (tileSize_ * idx);
             unsigned int pixIdx = idx * pixpertile_;
             
-            // 
             for (int patternIdx = 0; patternIdx < tileSize_; patternIdx += 2)
             {
                 for (int bit = 7; bit >= 0; bit--)

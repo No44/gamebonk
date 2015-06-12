@@ -68,11 +68,6 @@ namespace GBonk
             palettes_[id] = p;
         }
 
-        static inline bool _skipsprite(int x, int y)
-        {
-          return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
-        }
-
         void VideoSystem::drawLine()
         {
             drawLine(*LY_);
@@ -94,51 +89,26 @@ namespace GBonk
             driver_.draw(s);
         }
 
+        static inline bool _skipsprite(int x, int y)
+        {
+          return x == 0 || x >= 160 + 8 || y == 0 || y >= 144+16;
+        }
+
         void VideoSystem::drawLine(int line)
         {
-            Sprite result(ScreenWidth, 1);
-            result.x = 0;
-            result.y = line;
-          /*
-          if (!lcdc_.lcdOp)
+          if (!lcdc_->lcdOp)
             return;
-          // total number of tiles/sprites:
-          // - 40 sprites
-          // - 32 * 32 tiles (background)
-          // - 32 * 32 tiles (window)
-          static const unsigned int TotalSprites = 40 + 32*32 * 2;
-          std::vector<Sprite> sprites;
-          sprites.resize(TotalSprites);
+          if (line == 0)
+            buildBackground_();
 
-          // high prio is drawn on top of everything
-          // low prio is drawn beneath bckground and window
-          // hence, low prio sprites should appear first in the vector
-          static const unsigned int HIGH_PRIO = 0;
-          static const unsigned int LOW_PRIO = 1;
-          unsigned int spritePrioCount[2] = {0, 0};
-          unsigned int high_prio_idx = sprites.size() - 1;
-          for (int i = 0; i < 40; ++i)
-          {
-            ObjectAttribute& attr = spriteAttrMem_[i];
-            if (_skipsprite(line, attr.posx, attr.posy))
-              continue;
-            int index = attr.priority ? spritePrioCount[LOW_PRIO]++ : (spritePrioCount[HIGH_PRIO]++, high_prio_idx--);
-            sprites[index] = spritePatternTable_.getSprite(attr.patternId, palettes_[attr.palette]);
-            sprites[index].x = attr.posx - SPRITE_XPOS_ADJUST;
-            sprites[index].y = attr.posy - SPRITE_YPOS_ADJUST;
-            if (attr.xflip)
-              sprites[index].flipx();
-            if (attr.yflip)
-              sprites[index].flipy();
-            spritePrioCount[attr.priority]++;
-          }
-          */
+          // todo: window
+
+          Sprite result(ScreenWidth, 1);
+          result.x = 0;
+          result.y = line;
             
           if (lcdc_->backgroundDisplay)
           {
-            if (line == 0)
-              buildBackground_();
-            
             int bckgrd_y = (*SCY_ + line) % ScreenHeight;
             int bckgrd_x = *SCX_;
             unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
@@ -148,6 +118,41 @@ namespace GBonk
                 result.set(i, 0, pixel);
             }
           }
+
+          /*
+          int wx = *WX_ - 7;
+          int wy = *WY_;
+          if (lcdc_->windowDisplay
+              && wy >= 0 && wy <= 143
+              && wx >= 0 && wx <= 160)
+          {
+            int bckgrd_y = wy;
+            int bckgrd_x = wx;
+            unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
+            for (unsigned int i = 0; i < ScreenWidth; ++i)
+            {
+                unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
+                result.set(i, 0, pixel);
+            }
+
+          }
+          */
+
+          //sprites here
+/*
+          for (int i = 0; i < 40; ++i)
+          {
+            ObjectAttribute& attr = spriteAttrMem_[i];
+            if (_skipsprite(attr.posx, attr.posy))
+              continue;
+
+            int posy = attr.posy - SPRITE_YPOS_ADJUST;
+            if (posy < line && posy <= line + )
+
+
+            int posx = attr.posx - SPRITE_XPOS_ADJUST;
+          }
+*/
           driver_.draw(result);
         }
 

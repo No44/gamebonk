@@ -28,6 +28,12 @@ namespace GBonk
         class Sprite
         {
         public:
+            enum SizeMode
+            {
+              _8x8 = 0,
+              _8x16 = 1
+            };
+
             Sprite();
             Sprite(const uint32_t* mem, unsigned int width, unsigned int height);
             Sprite(unsigned int width, unsigned int height);

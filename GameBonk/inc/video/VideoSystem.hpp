@@ -73,7 +73,10 @@ namespace GBonk
                 };
                 uint8_t value;
             };
+
             LCDC* lcdc_;
+
+
             uint8_t* SCY_;
             uint8_t* SCX_;
             uint8_t* WX_;

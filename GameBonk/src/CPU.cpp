@@ -39,7 +39,7 @@ namespace GBonk
     // VBlank interrupt
     static const unsigned int VBLANK_INT_CYCLES = SCANLINE_CYCLES * Video::VideoSystem::ScreenHeight;
     // VBlank lasts for
-    static const unsigned int VBLANK_PERIOD_CYCLES = SCANLINE_CYCLES * (Video::VideoSystem::ScanLines - Video::VideoSystem::ScreenHeight);
+    static const unsigned int VBLANK_PERIOD_CYCLES = SCANLINE_CYCLES * ((Video::VideoSystem::ScanLines+1) - Video::VideoSystem::ScreenHeight);
 
     const unsigned int CPU::InterruptAddr[INT_P10 + 1] = {
         0x40, // VBLANK
@@ -55,6 +55,10 @@ namespace GBonk
         1 << 2,
         1 << 3
     };
+    const unsigned int CPU::InterruptPriorities[INT_P10 + 1] = {
+        1, 2, 3, 4, 5
+    };
+
     // Cycles needed for each incrementation
     static const unsigned int timer_freq[] =
     { CPU::CPU_FREQ / 4096,
@@ -67,7 +71,9 @@ namespace GBonk
     CPU::CPU()
         : interruptMasterEnable_(true),
         mmu_(),
-        video_(mmu_.memory())
+        video_(mmu_.memory()),
+        lastInterruptDate_(0),
+        lastInterruptPriority_(9)
     {
     }
 
@@ -142,15 +148,26 @@ namespace GBonk
     void CPU::interrupt(InterruptId i)
     {
         // todo: IF ?
+        *IF_ |= InterruptFlag[i];
+
+        uint64_t currentDate = sched_.date();
+        bool secondInt = currentDate == lastInterruptDate_;
+        bool isLowerPrio = secondInt && InterruptPriorities[i] > lastInterruptPriority_;
 
         // check if interrupt is allowed
         if (interruptMasterEnable_ == false
-            || (*IE_ & InterruptFlag[i]) == 0)
+            || (*IE_ & InterruptFlag[i]) == 0
+            || isLowerPrio)
             return;
 
         interruptMasterEnable_ = false;
-        registers_.sp -= 2;
-        writew(registers_.pc, registers_.sp);
+        lastInterruptDate_ = currentDate;
+        lastInterruptPriority_ = InterruptPriorities[i];
+        if (!secondInt)
+        {
+            registers_.sp -= 2;
+            writew(registers_.pc, registers_.sp);
+        }
         registers_.pc = InterruptAddr[i];
         // todo: verifier et setter les flags d'interrupt
     }
@@ -281,6 +298,8 @@ namespace GBonk
         case 0xFF00:
             ioregWrite(value, addr & 0xFF);
             break;
+        case 0xFE00:
+            break;
         default:
             break;
         }
@@ -288,16 +307,30 @@ namespace GBonk
 
     void CPU::cbDrawScanLine_()
     {
-        video_.drawLine();
         sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDrawScanLine_, this)), SCANLINE_CYCLES));
+
+        bool dointerrupt = false;
+
+
+        video_.drawLine();
+
+        // Check if we're not in vblank.
+        // If we are, we don't want to set STAT
+        if (*LY_ < Video::VideoSystem::ScreenHeight)
+        {
+            // set LCDC MODE to 0
+            *STAT_ &= ~3;
+            dointerrupt = *STAT_ & (1 << 3); // check if interrupt is requested upon mode being set to 0
+        }
         if (*LY_ == *LYC_)
         {
             *STAT_ |= 1 << 2; // set coincidence flag
-            if (*STAT_ & (1 << 6))
-                interrupt(INT_LCDC);
+            dointerrupt = *STAT_ & (1 << 6); // check if interrupt is requested upon reaching coincidence
         }
         else
             *STAT_ &= ~(1 << 2); // unset coincidence flag
+        if (dointerrupt)
+            interrupt(INT_LCDC);
     }
 
     void CPU::cbVBlank_()
@@ -311,14 +344,6 @@ namespace GBonk
         auto frameEnd = std::chrono::steady_clock::now();
         std::chrono::milliseconds frameTimeLength = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameTime_);
         std::chrono::milliseconds sleepDuration = desired_frame_time - frameTimeLength;
-
-        /*
-        std::cout << "Frame begin: " << frameTime_.time_since_epoch().count() <<
-            " frame end: " << frameEnd.time_since_epoch().count() << 
-            " Desired time: " << desired_frame_time.count() << 
-            "Fame len: " << frameTimeLength.count() 
-            << "  Sleep duration: " << sleepDuration.count() << std::endl;
-        */
 
         std::this_thread::sleep_for(sleepDuration);
 

@@ -121,6 +121,7 @@ namespace GBonk
         };
         static const unsigned int InterruptAddr[INT_P10 + 1];
         static const unsigned int InterruptFlag[INT_P10 + 1];
+        static const unsigned int InterruptPriorities[INT_P10 + 1];
 
         void interrupt(InterruptId interrupt);
 
@@ -159,6 +160,9 @@ namespace GBonk
         static const unsigned int KeyInputPortIdcs[2];
         std::array<bool, 8> keys_;
         std::chrono::steady_clock::time_point frameTime_;
+        uint64_t lastInterruptDate_;
+        unsigned int lastInterruptPriority_;
+
         friend class Debug::Debugger;
 
     private:

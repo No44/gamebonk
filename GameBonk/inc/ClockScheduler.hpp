@@ -39,6 +39,7 @@ namespace GBonk
         void step();
         void step(unsigned int cycles);
         void schedule(const Task& t);
+        uint64_t date() const { return date_; }
 
         uint64_t cyclesBeforeNextTask() const { assert(!tasks_.empty()); return tasks_.top().execDate_ - date_; }
 

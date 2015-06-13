@@ -61,6 +61,18 @@ namespace GBonk
         H = 1 << 5, // half-carry
         C = 1 << 4, // carry
     };
+    
+    enum class GBKeys : unsigned int
+    {
+        RIGHT = 0,
+        LEFT,
+        UP,
+        DOWN,
+        A,
+        B,
+        SELECT,
+        START
+    };
 
     class CPU
     {
@@ -95,21 +107,12 @@ namespace GBonk
         void prepareLaunch();
         void run();
         void runOne();
-        void runDuring(unsigned int cycles);
+
         void halt() { /*todo*/ }
         void stop() { /*todo*/ }
 
-        enum Keys
-        {
-            KEY_RIGHT = 0,
-            KEY_LEFT,
-            KEY_UP,
-            KEY_DOWN,
-            KEY_A,
-            KEY_B,
-            KEY_SELECT,
-            KEY_START
-        };
+        void onKeyUp(GBKeys k);
+        void onKeyDown(GBKeys k);
 
         enum InterruptId
         {
@@ -122,6 +125,7 @@ namespace GBonk
         static const unsigned int InterruptAddr[INT_P10 + 1];
         static const unsigned int InterruptFlag[INT_P10 + 1];
         static const unsigned int InterruptPriorities[INT_P10 + 1];
+        static const char* InterruptNames[INT_P10 + 1];
 
         void interrupt(InterruptId interrupt);
 
@@ -143,6 +147,7 @@ namespace GBonk
         void cbDiv_();
 
         void launchSequence_();
+        void dmaTransfer(unsigned int dma);
 
         friend OpFormat runCurrentOp(CPU&);
 

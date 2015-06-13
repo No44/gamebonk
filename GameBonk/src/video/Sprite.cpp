@@ -9,6 +9,8 @@ namespace GBonk
     namespace Video
     {
 
+        const unsigned int Sprite::ModeHeight[2] = { 8, 16 };
+
         Sprite::Sprite()
           : pixels_(),
             w_(0),
@@ -71,7 +73,7 @@ namespace GBonk
 
         void Sprite::flipx()
         {
-          for (int y = 0; y <= h_; ++y)
+          for (unsigned int y = 0; y <= h_; ++y)
           {
             uint32_t* line = &pixels_[y * w_];
             for (int i = 0, j = w_ - 1; i < j; ++i, --j)
@@ -85,7 +87,7 @@ namespace GBonk
           {
             uint32_t* lowline = &pixels_[i * w_];
             uint32_t* highline = &pixels_[j * w_];
-            for (int x = 0; x < w_; ++x)
+            for (unsigned int x = 0; x < w_; ++x)
               std::swap(lowline[x], highline[x]);
           }
         }

@@ -25,10 +25,16 @@ namespace GBonk
             void updateLCDC();
 
             void render();
+            void forcePumpEvents();
+
             void drawAll();
+
+            // todo: a opti
             void drawLine();
             void drawLine(int line);
-            void dmaTransfer(unsigned int dma);
+
+            void onVramWrite(unsigned int value, unsigned int addr);
+            void onOAMWrite(unsigned int value, unsigned int addr);
 
             enum PaletteId
             {
@@ -44,7 +50,7 @@ namespace GBonk
             static const unsigned int ScanLines = 153;
 
         private:
-            void buildBackground_();
+            void buildTileMap_(std::vector<unsigned int>& map, const TileTable& tileSource);
 
             static const unsigned int fbwidth = 256;
             static const unsigned int fbheight = 256;
@@ -57,6 +63,9 @@ namespace GBonk
             uint8_t* baseMem_;
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00
+
+            bool vramDirty_;
+            bool oamDirty_;
 
             Driver driver_;
 
@@ -93,7 +102,8 @@ namespace GBonk
 
             Palette palettes_[__PAL_COUNT];
 
-            std::array<unsigned int, 256*256> backgroundMap_;
+            std::vector<unsigned int> backgroundMap_;
+            std::vector<unsigned int> windowMap_;
         };
 
     }

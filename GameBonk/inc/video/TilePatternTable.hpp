@@ -35,7 +35,6 @@ namespace GBonk
             
             int firstSpriteIdx_;
             static const unsigned int spriteModeMask_[2];
-            static const unsigned int spriteModeHeight_[2];
 
        };
 

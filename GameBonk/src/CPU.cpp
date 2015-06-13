@@ -49,15 +49,23 @@ namespace GBonk
         0x60, // P10
     };
     const unsigned int CPU::InterruptFlag[INT_P10 + 1] = {
-        0,
         1,
         1 << 1,
         1 << 2,
-        1 << 3
+        1 << 3,
+        1 << 4
     };
     const unsigned int CPU::InterruptPriorities[INT_P10 + 1] = {
         1, 2, 3, 4, 5
     };
+    const char* CPU::InterruptNames[INT_P10 + 1] = {
+        "VBLANK",
+        "LCDC",
+        "TIMER",
+        "SERIAL",
+        "P10-13"
+    };
+
 
     // Cycles needed for each incrementation
     static const unsigned int timer_freq[] =
@@ -94,46 +102,27 @@ namespace GBonk
         launchSequence_();
         mmu_.setMBC(GBonk::AMBC::makeMBC(*game_));
         frameTime_ = std::chrono::steady_clock::now();
+        Video::Driver::SetOnKeyDownCb(std::bind(&CPU::onKeyDown, this, std::placeholders::_1));
+        Video::Driver::SetOnKeyUpCb(std::bind(&CPU::onKeyUp, this, std::placeholders::_1));
     }
 
     inline void CPU::runOne()
     {
-        //std::cout << "Running instruction " << std::hex << read(registers_.pc) << " at " << std::hex << registers_.pc << std::endl;
-        /*
-        {
-            Debug::Instruction instr(ROMReader(*this, registers_.pc));
-            std::cout << "[0x" << std::uppercase << std::setfill('0') << std::setw(8) << std::hex << registers_.pc << "]";
-            std::cout << instr.toString() << std::endl;
-        }
-        */
         CPU::OpFormat f = runCurrentOp(*this);
-
         registers_.pc += f.bytes;
-
         sched_.step(f.cycles);
+    }
 
-        // Read and run operation at PC
-        // decrement COUNTER from the amount of
-        // cycles the operation last
+    void CPU::onKeyUp(GBKeys k)
+    {
+        keys_[unsigned int(k)] = false;
+        interrupt(INT_P10);
+    }
 
-        /*
-        if (counter <= 0)
-        {
-        // run interrupts
-
-        if runInterrupt:
-        if_ = true;
-        interruptMasterEnable_ = false;
-        r.sp -= 2;
-        writew(r.pc, r.sp);
-        r.pc = interrupt_start_address;
-
-
-        counter += CPU::InterruptPeriod;
-        // if (exitRequested)
-        // break;
-        }
-        */
+    void CPU::onKeyDown(GBKeys k)
+    {
+        keys_[unsigned int(k)] = true;
+        interrupt(INT_P10);
     }
 
     void CPU::run()
@@ -147,7 +136,6 @@ namespace GBonk
 
     void CPU::interrupt(InterruptId i)
     {
-        // todo: IF ?
         *IF_ |= InterruptFlag[i];
 
         uint64_t currentDate = sched_.date();
@@ -169,7 +157,6 @@ namespace GBonk
             writew(registers_.pc, registers_.sp);
         }
         registers_.pc = InterruptAddr[i];
-        // todo: verifier et setter les flags d'interrupt
     }
 
     void CPU::disableInterrupts()
@@ -259,7 +246,7 @@ namespace GBonk
             break;
         case 0x46:
             // DMA
-            video_.dmaTransfer(*DMA_);
+            dmaTransfer(*DMA_);
             break;
         case 0x47:
             // BGP
@@ -293,12 +280,14 @@ namespace GBonk
     void CPU::write(unsigned int value, uint32_t addr)
     {
         mmu_.write(value, addr);
-        switch (addr & 0xFF00)
+        switch (addr & 0xF000)
         {
-        case 0xFF00:
-            ioregWrite(value, addr & 0xFF);
-            break;
-        case 0xFE00:
+        case 0x8000:
+        case 0x9000:
+            video_.onVramWrite(value, addr);
+        case 0xF000:
+            if ((addr & 0xFF00) == 0xFF00)
+                ioregWrite(value, addr & 0xFF);
             break;
         default:
             break;
@@ -311,9 +300,7 @@ namespace GBonk
 
         bool dointerrupt = false;
 
-
         video_.drawLine();
-
         // Check if we're not in vblank.
         // If we are, we don't want to set STAT
         if (*LY_ < Video::VideoSystem::ScreenHeight)
@@ -340,14 +327,18 @@ namespace GBonk
 
         interrupt(INT_VBLANK);
         sched_.schedule(ClockTask(call, VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
+        *STAT_ |= 1;
 
         auto frameEnd = std::chrono::steady_clock::now();
         std::chrono::milliseconds frameTimeLength = std::chrono::duration_cast<std::chrono::milliseconds>(frameEnd - frameTime_);
         std::chrono::milliseconds sleepDuration = desired_frame_time - frameTimeLength;
 
+        
+        video_.render();
         std::this_thread::sleep_for(sleepDuration);
 
-        video_.render();
+        std::cerr << "FPS: " << std::chrono::milliseconds(1000).count() / frameTimeLength.count() << std::endl;
+
         frameTime_ = std::chrono::steady_clock::now();
     }
 
@@ -436,6 +427,75 @@ namespace GBonk
         sched_.schedule(ClockTask(ClockCall(std::bind(&CPU::cbDiv_, this)), CPU::CPU_FREQ / 16384));
     }
 
+    class OAMDecoder
+    {
+    public:
+        OAMDecoder(CPU& c, unsigned int sourceAddr)
+            : c_(c),
+            addr_(sourceAddr),
+            remains_(false)
+        {
+        }
+
+        inline uint32_t getNextOAM()
+        {
+            uint32_t result = 0;
+
+            if (remains_)
+            {
+                result = (byte_ & ((1 << 4) - 1));
+                result <<= 8;
+
+                result |= c_.read(addr_++);
+                result <<= 8;
+                result |= c_.read(addr_++);
+                result <<= 8;
+                result |= c_.read(addr_++);
+                result <<= 4;
+                remains_ = false;
+            }
+            else
+            {
+                result = c_.read(addr_++);
+                result <<= 8;
+                result |= c_.read(addr_++);
+                result <<= 8;
+                result |= c_.read(addr_++);
+                result <<= 8;
+
+                byte_ = c_.read(addr_++);
+                result |= byte_ & (((1 << 4) - 1) << 4);
+                remains_ = true;
+            }
+            return result;
+        }
+
+    private:
+
+        CPU& c_;
+        unsigned int addr_;
+        unsigned int byte_;
+        bool remains_;
+    };
+
+    void CPU::dmaTransfer(unsigned int dma)
+    {
+        unsigned int sourceAddr = dma * 0x100;
+        unsigned int destAddr = MMU::SPRITE_ATTRIB_MEMORY;
+        OAMDecoder d(*this, sourceAddr);
+
+        // Source OAM is stored as 40 * 28 bits, so we need to be careful about that.
+        // Each OAM is still 4 bytes.
+        while (destAddr != (MMU::SPRITE_ATTRIB_MEMORY + 160))
+        {
+            uint32_t next = d.getNextOAM();
+            write((next & (0xFF << 24)) >> 24, destAddr++);
+            write((next & (0xFF << 16)) >> 16, destAddr++);
+            write((next & (0xFF << 8)) >> 8, destAddr++);
+            write(next & 0xFF, destAddr++);
+        }
+    }
+
 #define FSET(FLAG) { r.AF.F |= static_cast<unsigned int>(CPUFlags::FLAG); }
 #define FRESET(FLAG) { r.AF.F &= ~static_cast<unsigned int>(CPUFlags::FLAG); }
 #define FTOGGLE(FLAG) { r.AF.F ^= static_cast<unsigned int>(CPUFlags::FLAG); }
@@ -469,8 +529,8 @@ namespace GBonk
 #define _DECMEM(DST, LEN, CYCLES) { int ini = cpu.read(DST); cpu.write(ini - 1, DST); FASSIGN(Z, !(ini - 1)); FSET(N); FASSIGN(H, !BORROW(ini, ini - 1)); return {CYCLES, LEN}; }
 #define _DECREG(DST, LEN, CYCLES) {DST--; return {CYCLES, LEN}; }
 #define _INCREG(DST, LEN, CYCLES) {DST++; return {CYCLES, LEN}; }
-#define _SWAP(DST, LEN, CYCLES) { DST = (((DST) & 0x0F) << 8) | (((DST) & 0xF0) >> 8); FASSIGN(Z, !(DST)); FRESET(N); FRESET(C); FRESET(H); return {CYCLES, LEN}; }
-#define _SWAPMEM(DST, LEN, CYCLES) { unsigned int val = cpu.read(DST); val = ((val & 0x0F) << 8) | ((val & 0xF0) >> 8); cpu.write(val, DST); FASSIGN(Z, !val); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
+#define _SWAP(DST, LEN, CYCLES) { DST = (((DST) & 0x0F) << 4) | (((DST) & 0xF0) >> 4); FASSIGN(Z, !(DST)); FRESET(N); FRESET(C); FRESET(H); return {CYCLES, LEN}; }
+#define _SWAPMEM(DST, LEN, CYCLES) { unsigned int val = cpu.read(DST); val = ((val & 0x0F) << 4) | ((val & 0xF0) >> 4); cpu.write(val, DST); FASSIGN(Z, !val); FRESET(N); FRESET(H); FRESET(C); return {CYCLES, LEN}; }
 #define _CPL(DST, LEN, CYCLES) { DST = ~DST; FSET(N); FSET(H); return {CYCLES, LEN}; }
 #define _CCF() { FTOGGLE(C); FRESET(N); FRESET(H); return {4, 1}; }
 #define _SCF() { FSET(C); FRESET(N); FRESET(H); return {4, 1}; }
@@ -525,7 +585,7 @@ namespace GBonk
 
     static inline CPU::OpFormat DAA(CPU& cpu, CPU::Registers& r)
     {
-        uint32_t upper = (r.AF.A & 0xF0) >> 8;
+        uint32_t upper = (r.AF.A & 0xF0) >> 4;
         uint32_t lower = (r.AF.A & 0xF);
         bool C = !!(r.AF.F & (unsigned int)CPUFlags::C);
         bool H = !!(r.AF.F & (unsigned int)CPUFlags::H);

@@ -12,6 +12,8 @@ namespace GBonk
             : baseMem_(m),
             vram_(m + MMU::VIDEO_RAM),
             spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(m + MMU::SPRITE_ATTRIB_MEMORY)),
+            vramDirty_(true),
+            oamDirty_(false),
             lcdc_(reinterpret_cast<LCDC*>(m + 0xFF40)),
             SCY_(m + 0xFF42),
             SCX_(m + 0xFF43),
@@ -30,6 +32,8 @@ namespace GBonk
             palettes_[1][1] = 0xF0FF0FFF;
             palettes_[1][2] = 0x0F0F0FFF;
             palettes_[1][3] = 0xFF00FFFF;
+            backgroundMap_.resize(256 * 256);
+            windowMap_.resize(256 * 256);
         }
 
         static const uint32_t background_tile_table_addresses[] = {
@@ -55,12 +59,22 @@ namespace GBonk
         void VideoSystem::render()
         {
             driver_.render();
+            driver_.pumpEvents();
         }
 
-        void VideoSystem::dmaTransfer(unsigned int dma)
+        void VideoSystem::forcePumpEvents()
         {
-            std::cerr << std::hex << dma << std::endl;
-            throw std::runtime_error("not implemented but now I have an example");
+            driver_.pumpEvents();
+        }
+
+        void VideoSystem::onVramWrite(unsigned int value, unsigned int addr)
+        {
+            vramDirty_ = true;
+        }
+
+        void VideoSystem::onOAMWrite(unsigned int value, unsigned int addr)
+        {
+            oamDirty_ = true;
         }
 
         void VideoSystem::setPalette(PaletteId id, const Palette& p)
@@ -80,7 +94,7 @@ namespace GBonk
             s.x = 0;
             s.y = 0;
             tilePatternTable_.invalidate();
-            buildBackground_();
+            buildTileMap_(backgroundMap_, backgroundTable_);
 
             for (int y = 0; y < ScreenHeight; ++y)
             {
@@ -96,82 +110,118 @@ namespace GBonk
 
         void VideoSystem::drawLine(int line)
         {
-          if (!lcdc_->lcdOp)
-            return;
-          if (line == 0)
-            buildBackground_();
+            if (!lcdc_->lcdOp || line > ScreenHeight)
+                return;
+            if (line == 0 && vramDirty_)
+            {
+                buildTileMap_(backgroundMap_, backgroundTable_);
+                buildTileMap_(windowMap_, windowTable_);
+                vramDirty_ = false;
+            }
 
-          // todo: window
+            // todo: window
 
-          Sprite result(ScreenWidth, 1);
-          result.x = 0;
-          result.y = line;
+            Sprite result(ScreenWidth, 1);
+            result.x = 0;
+            result.y = line;
+
+            if (lcdc_->backgroundDisplay)
+            {
+                int bckgrd_y = (*SCY_ + line) % ScreenHeight;
+                int bckgrd_x = *SCX_;
+                unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
+                for (unsigned int i = 0; i < ScreenWidth; ++i)
+                {
+                    unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
+                    result.set(i, 0, pixel);
+                }
+            }
+
             
-          if (lcdc_->backgroundDisplay)
-          {
-            int bckgrd_y = (*SCY_ + line) % ScreenHeight;
-            int bckgrd_x = *SCX_;
-            unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
-            for (unsigned int i = 0; i < ScreenWidth; ++i)
+            int wx = *WX_ - 7;
+            int wy = *WY_;
+            if (lcdc_->windowDisplay
+                && line >= wy
+                && wy >= 0 && wy <= 143
+                && wx >= 0 && wx <= 160)
             {
-                unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
-                result.set(i, 0, pixel);
+                int bckgrd_y = line;
+                int bckgrd_x = wx;
+                unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
+                for (; bckgrd_x < ScreenWidth; ++bckgrd_x)
+                {
+                    unsigned int pixel = windowMap_[bckgrd_pixy + bckgrd_x];
+                    result.set(bckgrd_x, 0, pixel);
+                }
             }
-          }
+            
 
-          /*
-          int wx = *WX_ - 7;
-          int wy = *WY_;
-          if (lcdc_->windowDisplay
-              && wy >= 0 && wy <= 143
-              && wx >= 0 && wx <= 160)
-          {
-            int bckgrd_y = wy;
-            int bckgrd_x = wx;
-            unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
-            for (unsigned int i = 0; i < ScreenWidth; ++i)
+
+            Sprite::SizeMode mode = static_cast<Sprite::SizeMode>(lcdc_->spriteSizeMode);
+            // todo: faire une map de sprite lines a la ligne 0 pour eviter de refaire tout ca pour chaque ligne
+            // todo: gerer attr->priority mais c'est chiant
+            std::vector<ObjectAttribute*> orderedSprites;
+            orderedSprites.reserve(40);
+            for (int i = 0; i < 40; ++i)
             {
-                unsigned int pixel = backgroundMap_[bckgrd_pixy + ((bckgrd_x + i) % fbwidth)];
-                result.set(i, 0, pixel);
+                ObjectAttribute& attr = spriteAttrMem_[i];
+
+                if (_skipsprite(attr.posx, attr.posy))
+                    continue;
+
+                unsigned int posy = attr.posy - SPRITE_YPOS_ADJUST;
+                if (posy > line || posy + Sprite::ModeHeight[mode] <= line)
+                    continue;
+                orderedSprites.push_back(&attr);
+            }
+            // We sort from lowest to highest priority : lower prio sprites will
+            // hence be overwritten.
+            // LOWEST PRIO FIRST
+            std::sort(orderedSprites.begin(), orderedSprites.end(), [](ObjectAttribute* a, ObjectAttribute* b)
+            {
+                if (a->posx != b->posx)
+                    return a->posx > b->posx;
+                return a > b;
+            });
+
+            for (auto attr : orderedSprites)
+            {
+                int posy = attr->posy - SPRITE_YPOS_ADJUST;
+                int posx = attr->posx - SPRITE_XPOS_ADJUST;
+                Sprite sprite = spritePatternTable_.getSprite(attr->patternId, palettes_[attr->palette], mode);
+
+                if (attr->xflip)
+                    sprite.flipx();
+                if (attr->yflip)
+                    sprite.flipy();
+                
+                unsigned int sx = posx < 0 ? -posx : 0;
+                unsigned int sy = line - posy;
+                posx = std::max(posx, 0);
+
+                for (; sx < sprite.width() && posx < ScreenWidth; ++sx)
+                    result.set(posx++, 0, sprite.at(sx, sy));
             }
 
-          }
-          */
-
-          //sprites here
-/*
-          for (int i = 0; i < 40; ++i)
-          {
-            ObjectAttribute& attr = spriteAttrMem_[i];
-            if (_skipsprite(attr.posx, attr.posy))
-              continue;
-
-            int posy = attr.posy - SPRITE_YPOS_ADJUST;
-            if (posy < line && posy <= line + )
-
-
-            int posx = attr.posx - SPRITE_XPOS_ADJUST;
-          }
-*/
-          driver_.draw(result);
+            driver_.draw(result);
         }
 
-        void VideoSystem::buildBackground_()
+        void VideoSystem::buildTileMap_(std::vector<unsigned int>& map, const TileTable& tileSource)
         {
           for (int y = 0; y < TileRows; y++)
           {
             for (int x=  0; x < TileCols; x++)
             {
-              unsigned int tileId = backgroundTable_.tileId(x, y);
+              unsigned int tileId = tileSource.tileId(x, y);
               Sprite s = tilePatternTable_.getSprite(tileId, palettes_[PAL_BG]);
 
               // todo: bug si sprites en ;ode 8*16
               int by = y * TilePixSize;
               int bx = x * TilePixSize;
-              int py = 0;
+              unsigned int py = 0;
               for (; py < s.height(); ++by, ++py)
               {
-                  std::memcpy(&backgroundMap_[by * fbwidth + bx], &s[py * s.width()], s.width() * sizeof(unsigned int));
+                  std::memcpy(&map[by * fbwidth + bx], &s[py * s.width()], s.width() * sizeof(unsigned int));
               }
             }
           }

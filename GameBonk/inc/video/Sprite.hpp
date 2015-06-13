@@ -33,6 +33,7 @@ namespace GBonk
               _8x8 = 0,
               _8x16 = 1
             };
+            static const unsigned int ModeHeight[2];
 
             Sprite();
             Sprite(const uint32_t* mem, unsigned int width, unsigned int height);

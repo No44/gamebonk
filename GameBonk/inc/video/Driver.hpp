@@ -2,11 +2,14 @@
 #define GBONK_VIDEO_DRIVER_HPP
 
 #include <memory>
+#include <functional>
 
 #include "video/Sprite.hpp"
 
 namespace GBonk
 {
+
+    enum class GBKeys : unsigned int;
 
     namespace Video
     {
@@ -18,6 +21,8 @@ namespace GBonk
         {
         public:
 
+            typedef std::function<void(GBKeys)> InputCb;
+
             bool pumpEvents();
             void openWindow();
             void render();
@@ -26,9 +31,14 @@ namespace GBonk
             static bool Init();
             static void Shutdown();
 
+            static void SetOnKeyDownCb(InputCb cb);
+            static void SetOnKeyUpCb(InputCb cb);
+
         private:
             static Driver_p* p_;
         };
+
+        
 
     }
     

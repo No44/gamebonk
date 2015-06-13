@@ -9,7 +9,7 @@ namespace GBonk
     {
 
         const unsigned int TilePatternTable::spriteModeMask_[2] = {0xFF, 0xFE};
-        const unsigned int TilePatternTable::spriteModeHeight_[2] = { 8, 16 };
+
 
         TilePatternTable::TilePatternTable()
             : addr_(nullptr),
@@ -24,7 +24,7 @@ namespace GBonk
         {
             std::fill(built_.begin(), built_.end(), false);
             if (addr_off == 0x8800)
-                firstSpriteIdx_ = 128;
+                firstSpriteIdx_ = 0x80;
             else
                 firstSpriteIdx_ = 0;
             addr_ = baseAddr + addr_off;
@@ -48,10 +48,10 @@ namespace GBonk
             }
             
             // Sprites are always 8 pixels wide
-            Sprite result(8, spriteModeHeight_[spriteMode_]);
+            Sprite result(8, Sprite::ModeHeight[spriteMode_]);
             int pidx = tileidx * pixpertile_;
             
-            for (int y = 0; y < spriteModeHeight_[spriteMode_]; ++y)
+            for (unsigned int y = 0; y < Sprite::ModeHeight[spriteMode_]; ++y)
             {
                 for (int x = 0; x < 8; ++x)
                 {

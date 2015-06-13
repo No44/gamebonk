@@ -1,13 +1,17 @@
+#include <functional>
 #include <cstring>
 #include <exception>
 #include <string>
 #include <iostream>
-
+#include <map>
 
 #include <SDL2/SDL.h>
 
 #include "video/VideoSystem.hpp"
 #include "video/Driver.hpp"
+#include "CPU.hpp"
+
+typedef SDL_Keycode SDLKey;
 
 namespace GBonk
 {
@@ -24,18 +28,42 @@ namespace GBonk
             void render();
             void draw(const Sprite&);
 
-            friend bool Driver::Init();
-            friend void Driver::Shutdown();
+            void setOnKeyDown(Driver::InputCb cb);
+            void setOnKeyUp(Driver::InputCb cb);
 
-        private:
             bool init();
             void shutdown();
+
+
+        private:
 
             SDL_Surface* screenSurface_;
             SDL_Texture* screenTex_;
             SDL_Window* win_;
             SDL_Renderer* rend_;
+            Driver::InputCb keydownCb_;
+            Driver::InputCb keyupCb_;
+            
+            static std::map<SDLKey, GBKeys> keyBindings_;
         };
+
+        std::map<SDLKey, GBKeys> initBindings()
+        {
+            std::map<SDLKey, GBKeys> r;
+            
+            r[SDLK_UP] = GBKeys::UP;
+            r[SDLK_DOWN] = GBKeys::DOWN;
+            r[SDLK_LEFT] = GBKeys::LEFT;
+            r[SDLK_RIGHT] = GBKeys::RIGHT;
+            r[SDLK_a] = GBKeys::A;
+            r[SDLK_z] = GBKeys::B;
+            r[SDLK_s] = GBKeys::SELECT;
+            r[SDLK_SPACE] = GBKeys::START;
+            
+            return r;
+        }
+        
+        std::map<SDLKey, ::GBonk::GBKeys> Driver_p::keyBindings_ = initBindings();
 
         Driver_p* Driver::p_ = new Driver_p;
         
@@ -76,7 +104,15 @@ namespace GBonk
             delete Driver::p_;
         }
 
+        void Driver::SetOnKeyDownCb(InputCb cb)
+        {
+            p_->setOnKeyDown(cb);
+        }
 
+        void Driver::SetOnKeyUpCb(InputCb cb)
+        {
+            p_->setOnKeyUp(cb);
+        }
 
 
         Driver_p::Driver_p()
@@ -96,14 +132,6 @@ namespace GBonk
                 return false;
             }
             screenSurface_ = SDL_CreateRGBSurface(0, VideoSystem::ScreenWidth, VideoSystem::ScreenHeight, 32, 0, 0, 0, 0);
-            /*
-            for (int i = 0; i < screenSurface_->h; ++i)
-            {
-                int line = i * screenSurface_->w;
-                for (int j = 0; j < screenSurface_->w; ++j)
-                    ((uint32_t*)screenSurface_->pixels)[i + j] = 0xFFFFFFFF;
-            }
-            */
             std::memset(screenSurface_->pixels, 0xFF, screenSurface_->h * screenSurface_->w * 4);
 
             return true;
@@ -141,14 +169,27 @@ namespace GBonk
             SDL_RenderPresent(rend_);
         }
 
+        void Driver_p::setOnKeyDown(Driver::InputCb cb)
+        {
+            keydownCb_ = cb;
+        }
+
+        void Driver_p::setOnKeyUp(Driver::InputCb cb)
+        {
+            keyupCb_ = cb;
+        }
+
         bool Driver_p::pumpEvents()
         {
             SDL_Event e;
             while (SDL_PollEvent(&e))
             {
-                if (e.type == SDL_QUIT
-                    || e.type == SDL_KEYDOWN)
+                if (e.type == SDL_QUIT)
                     return true;
+                else if (e.type == SDL_KEYDOWN)
+                    keydownCb_(keyBindings_[e.key.keysym.sym]);
+                else if (e.type == SDL_KEYUP)
+                    keyupCb_(keyBindings_[e.key.keysym.sym]);;
             }
             return false;
         }
@@ -157,9 +198,9 @@ namespace GBonk
         {
             uint32_t* pixels = (uint32_t*)screenSurface_->pixels;
 
-            for (int j = 0; j < s.height(); ++j)
+            for (unsigned int j = 0; j < s.height(); ++j)
             {
-                for (int i = 0; i < s.width(); ++i)
+                for (unsigned int i = 0; i < s.width(); ++i)
                 {
                     int x = s.x + i;
                     int y = s.y + j;

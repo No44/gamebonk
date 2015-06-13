@@ -91,11 +91,11 @@ namespace GBonk
                 if (!break_)
                 {
                     cpu_.runOne();
+                    
                     if (std::binary_search(breakpoints_.begin(), breakpoints_.end(), cpu_.registers_.pc))
                     {
-                        break_ = true;
+                        brk();
                         host_.enable();
-                        stepUpdateDisplay_();
                     }
                     else if (std::chrono::steady_clock::now() >= eventTime)
                     {
@@ -106,7 +106,8 @@ namespace GBonk
                 else
                 {
                     host_.pumpEvents();
-                    d.pumpEvents();
+                    if (d.pumpEvents())
+                        return;
                     std::this_thread::sleep_for(eventPeriod);
                 }
             }

@@ -39,7 +39,7 @@ namespace GBonk
         {
             int tileidx = (firstSpriteIdx_ + tileId) & spriteModeMask_[spriteMode_];
 
-            assert(tileidx < 0xFF && tileidx >= 0);
+            assert(tileidx <= 0xFF && tileidx >= 0);
             if (built_[tileidx] == false)
             {
                 buildSprite_(tileidx);

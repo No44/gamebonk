@@ -72,11 +72,6 @@ namespace GBonk
             vramDirty_ = true;
         }
 
-        void VideoSystem::onOAMWrite(unsigned int value, unsigned int addr)
-        {
-            oamDirty_ = true;
-        }
-
         void VideoSystem::setPalette(PaletteId id, const Palette& p)
         {
             palettes_[id] = p;
@@ -145,18 +140,17 @@ namespace GBonk
                 && wy >= 0 && wy <= 143
                 && wx >= 0 && wx <= 160)
             {
-                int bckgrd_y = line;
-                int bckgrd_x = wx;
-                unsigned int bckgrd_pixy = bckgrd_y * fbwidth;
-                for (; bckgrd_x < ScreenWidth; ++bckgrd_x)
+                int winbuf_y = line - wy;
+                unsigned int winbuf_pix = winbuf_y * fbwidth;
+                for (; wx < ScreenWidth; ++winbuf_pix, ++wx)
                 {
-                    unsigned int pixel = windowMap_[bckgrd_pixy + bckgrd_x];
-                    result.set(bckgrd_x, 0, pixel);
+                    unsigned int pixel = windowMap_[winbuf_pix];
+                    result.set(wx, 0, pixel);
                 }
             }
             
 
-
+            
             Sprite::SizeMode mode = static_cast<Sprite::SizeMode>(lcdc_->spriteSizeMode);
             // todo: faire une map de sprite lines a la ligne 0 pour eviter de refaire tout ca pour chaque ligne
             // todo: gerer attr->priority mais c'est chiant
@@ -215,7 +209,6 @@ namespace GBonk
               unsigned int tileId = tileSource.tileId(x, y);
               Sprite s = tilePatternTable_.getSprite(tileId, palettes_[PAL_BG]);
 
-              // todo: bug si sprites en ;ode 8*16
               int by = y * TilePixSize;
               int bx = x * TilePixSize;
               unsigned int py = 0;

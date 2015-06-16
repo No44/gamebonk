@@ -210,9 +210,10 @@ namespace GBonk
         {
         case 0x00: {
             // Joypad
-            //                Test for P15
-            // If P15 is selected, op will return 1
-            const int portidx = KeyInputPortIdcs[!!(*P1_ & (1 << 5))];
+            // Selected OUT is the one set to 0 for some reason
+            int portidx = 0;
+            if (*P1_ & (1 << 4)) // if P14 is 1, P15 is selected
+                portidx = 4;
             
             *P1_ = 0;
             // Set all keys that are pushed
@@ -301,6 +302,7 @@ namespace GBonk
         bool dointerrupt = false;
 
         video_.drawLine();
+
         // Check if we're not in vblank.
         // If we are, we don't want to set STAT
         if (*LY_ < Video::VideoSystem::ScreenHeight)

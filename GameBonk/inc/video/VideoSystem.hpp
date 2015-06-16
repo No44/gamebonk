@@ -34,8 +34,7 @@ namespace GBonk
             void drawLine(int line);
 
             void onVramWrite(unsigned int value, unsigned int addr);
-            void onOAMWrite(unsigned int value, unsigned int addr);
-
+            
             enum PaletteId
             {
                 PAL_OBJ0 = 0,

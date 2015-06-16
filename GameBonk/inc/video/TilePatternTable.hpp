@@ -25,7 +25,7 @@ namespace GBonk
         private:
             static const unsigned int tileSize_ = 16;
             static const unsigned int pixpertile_ = 64;
-            static const unsigned int tileCount_ = 255;
+            static const unsigned int tileCount_ = 256;
 
             void buildSprite_(int idx);
 

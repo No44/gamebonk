@@ -1,6 +1,7 @@
 #include <cstring>
 
 #include "MMU.hpp"
+#include "utility.hpp"
 #include "video/VideoSystem.hpp"
 
 namespace GBonk
@@ -12,8 +13,6 @@ namespace GBonk
             : baseMem_(m),
             vram_(m + MMU::VIDEO_RAM),
             spriteAttrMem_(reinterpret_cast<ObjectAttribute*>(m + MMU::SPRITE_ATTRIB_MEMORY)),
-            vramDirty_(true),
-            oamDirty_(false),
             lcdc_(reinterpret_cast<LCDC*>(m + 0xFF40)),
             SCY_(m + 0xFF42),
             SCX_(m + 0xFF43),
@@ -23,17 +22,12 @@ namespace GBonk
             LYC_(m + 0xFF45)
         {
             spritePatternTable_.setAddr(m, 0x8000);
-            palettes_[0][0] = 0xFF0000FF;
-            palettes_[0][1] = 0x00FF00FF;
-            palettes_[0][2] = 0x0000FFFF;
-            palettes_[0][3] = 0xFFFF00FF;
-
-            palettes_[1][0] = 0xFFFFF0FF;
-            palettes_[1][1] = 0xF0FF0FFF;
-            palettes_[1][2] = 0x0F0F0FFF;
-            palettes_[1][3] = 0xFF00FFFF;
             backgroundMap_.resize(256 * 256);
             windowMap_.resize(256 * 256);
+            sprites_.resize(SpriteCount);
+            
+            for (auto& s : sprites_)
+                s.x = ScreenWidth, s.y = ScreenHeight;
         }
 
         static const uint32_t background_tile_table_addresses[] = {
@@ -69,7 +63,90 @@ namespace GBonk
 
         void VideoSystem::onVramWrite(unsigned int value, unsigned int addr)
         {
-            vramDirty_ = true;
+            // todo: if writing in pattern table, need to update sprites
+        }
+
+        void VideoSystem::onVramWritew(unsigned int value, unsigned int addr)
+        {
+        }
+
+        void VideoSystem::onOAMWrite(unsigned int value, unsigned int oldValue, unsigned int addr)
+        {
+            return; // tmp: debug release
+
+            // get previous multiple of 4: that's our sprite index
+            static const unsigned int SpriteAddrMask = 3;
+            unsigned int oamBaseAddr = addr & ~SpriteAddrMask;
+            unsigned int spriteIdx = (oamBaseAddr - MMU::SPRITE_ATTRIB_MEMORY) / sizeof(ObjectAttribute);
+            Sprite& s = sprites_[spriteIdx];
+            Sprite::SizeMode mode = static_cast<Sprite::SizeMode>(lcdc_->spriteSizeMode);
+            ObjectAttribute& attr = spriteAttrMem_[spriteIdx];
+
+            switch (addr & SpriteAddrMask)
+            {
+            case 0: {
+                // posy
+                unsigned int newPosY = value;
+                unsigned int oldY = s.y;
+
+                // possible opti sur les lignes qui overlappent ?
+                for (unsigned int end = std::min(ScreenHeight, oldY + Sprite::ModeHeight[mode]); oldY < end; ++oldY)
+                    spriteLines_[oldY].remove(&s);
+                for (unsigned int end = std::min(ScreenHeight, value + Sprite::ModeHeight[mode]); value < end; ++value)
+                {
+                    std::list<Sprite*>& line = spriteLines_[newPosY];
+                    std::list<Sprite*>::iterator it = line.begin();
+                    for (std::list<Sprite*>::iterator end = line.end(); it != end && s.x < (*it)->x; ++it);
+                    line.insert(it, &s);
+                }
+
+                s.y = newPosY;
+                break; }
+            case 1: {
+                // posx
+                unsigned int ssize = Sprite::ModeHeight[mode];
+                s.x = value;
+                for (unsigned int i = 0; i < ssize; ++i)
+                {
+                    std::list<Sprite*>& line = spriteLines_[s.y + i];
+                    line.remove(&s);
+                    std::list<Sprite*>::iterator it, end;
+                    for (it = line.begin(), end = line.end();
+                        it != end; ++it)
+                    {
+                        unsigned int otherx = (*it)->x;
+                        if (s.x > otherx || (s.x == otherx && &s > *it))
+                            break;
+                    }
+                    line.insert(it, &s);
+                }
+                break; }
+            case 2:
+                // patternId
+                s.setPixels(spritePatternTable_.getPattern(value, palettes_[attr.palette], mode));
+                break;
+            case 3: {
+                // single bit stuff: prio, x/yflip, palette
+                static const unsigned int prio = 1 << 7;
+                static const unsigned int yflip = 1 << 6;
+                static const unsigned int xflip = 1 << 5;
+                static const unsigned int palette = 1 << 4;
+                
+                if ((value & yflip) != (oldValue & yflip))
+                    s.flipy();
+                if ((value & xflip) != (oldValue & xflip))
+                    s.flipx();
+                if ((value&palette) != (oldValue & palette))
+                    s.setPixels(spritePatternTable_.getPattern(value, palettes_[attr.palette], mode));
+
+                break; }
+            }
+        }
+
+        void VideoSystem::onOAMWritew(unsigned int value, unsigned int oldValue, unsigned int addr)
+        {
+            onOAMWrite(value & 0xFF, oldValue & 0xFF, addr);
+            onOAMWrite((value & 0xFF00) >> 8, (oldValue &0xFF00) >> 8, addr + 1);
         }
 
         void VideoSystem::setPalette(PaletteId id, const Palette& p)
@@ -79,8 +156,9 @@ namespace GBonk
 
         void VideoSystem::drawLine()
         {
-            drawLine(*LY_);
-            *LY_ = (*LY_ + 1) % ScanLines;
+            unsigned int line = *LY_;
+            drawLine(line);
+            *LY_ = (line + 1) % ScanLines;
         }
 
         void VideoSystem::drawAll()
@@ -107,14 +185,11 @@ namespace GBonk
         {
             if (!lcdc_->lcdOp || line > ScreenHeight)
                 return;
-            if (line == 0 && vramDirty_)
+            if (line == 0)
             {
                 buildTileMap_(backgroundMap_, backgroundTable_);
                 buildTileMap_(windowMap_, windowTable_);
-                vramDirty_ = false;
             }
-
-            // todo: window
 
             Sprite result(ScreenWidth, 1);
             result.x = 0;
@@ -196,6 +271,10 @@ namespace GBonk
                 for (; sx < sprite.width() && posx < ScreenWidth; ++sx)
                     result.set(posx++, 0, sprite.at(sx, sy));
             }
+
+
+
+
 
             driver_.draw(result);
         }

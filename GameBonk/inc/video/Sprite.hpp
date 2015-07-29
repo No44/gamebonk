@@ -42,6 +42,9 @@ namespace GBonk
             ~Sprite();
             Sprite& operator=(Sprite&&);
 
+            void setPixels(const std::vector<uint32_t>& pixels);
+            void setPixels(std::vector<uint32_t>&& pixels);
+            void setPixels(const std::vector<uint32_t>& pixels, unsigned int newWidth, unsigned int newHeight);
             unsigned int width() const { return w_; }
             unsigned int height() const { return h_; }
             int x;

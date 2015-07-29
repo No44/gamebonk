@@ -70,18 +70,21 @@ namespace GBonk
         return 0;
     }
 
-    void MBC1::write(unsigned int val, uint32_t addr)
+    unsigned int MBC1::write(unsigned int val, uint32_t addr)
     {
+        unsigned int old = 0;
         switch (addr & 0xF000)
         {
         case 0x0000:
         case 0x1000:
+            old = enableRAMBank_;
             enableRAMBank_ = (val & 0x0F) == 0x0A;
             break;
         case 0x2000:
         case 0x3000:
         {
             // ROM bank select
+            old = romOffset_ / 0x4000;
             unsigned int bank = val & 0x1F;
             switch (bank)
             {
@@ -121,6 +124,7 @@ namespace GBonk
         }
         case 0xA000:
         case 0xB000:
+            old = externalRAM_[ramOffset_ + addr & 0x1FFF];
             if (enableRAMBank_)
                 externalRAM_[ramOffset_ + addr & 0x1FFF] = val;
             break;
@@ -128,20 +132,24 @@ namespace GBonk
             std::cerr << "MBC1 shouldn't have to write to location " << std::hex << addr << std::endl;
             abort();
         }
+        return old;
     }
 
-    void MBC1::writew(unsigned int val, uint32_t addr)
+    unsigned int MBC1::writew(unsigned int val, uint32_t addr)
     {
+        unsigned int old = 0;
         switch (addr & 0xF000)
         {
         case 0x0000:
         case 0x1000:
+            old = enableRAMBank_;
             enableRAMBank_ = (val & 0x0F) == 0x0A;
             break;
         case 0x2000:
         case 0x3000:
         {
             // ROM bank select
+            unsigned int old = romOffset_ / 0x4000;
             unsigned int bank = val & 0x1F;
             switch (bank)
             {
@@ -185,12 +193,15 @@ namespace GBonk
             if (!enableRAMBank_)
                 break;
             uint32_t baseAddr = ramOffset_ + (addr & 0x1FFF);
+            old = externalRAM_[baseAddr + 1] << 8 | externalRAM_[baseAddr];
             externalRAM_[baseAddr] = val & 0xFF;
             externalRAM_[baseAddr + 1] = (val & 0xFF00) >> 8;
+            break;
         }
         default:
             std::cerr << "MBC1 shouldn't have to writew to location " << std::hex << addr << std::endl;
             abort();
         }
+        return old;
     }
 }

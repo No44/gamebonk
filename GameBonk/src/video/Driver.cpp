@@ -27,6 +27,7 @@ namespace GBonk
             void openWindow();
             void render();
             void draw(const Sprite&);
+            void setWindowTitle(const std::string& title);
 
             void setOnKeyDown(Driver::InputCb cb);
             void setOnKeyUp(Driver::InputCb cb);
@@ -75,6 +76,11 @@ namespace GBonk
         void Driver::draw(const Sprite& s)
         {
             p_->draw(s);
+        }
+
+        void Driver::setWindowTitle(const std::string& t)
+        {
+            p_->setWindowTitle(t);
         }
 
         void Driver::render()
@@ -207,6 +213,11 @@ namespace GBonk
                     pixels[y * VideoSystem::ScreenWidth + x] = s.at(i, j);
                 }
             }
+        }
+
+        void Driver_p::setWindowTitle(const std::string& t)
+        {
+            SDL_SetWindowTitle(win_, t.c_str());
         }
     }
 

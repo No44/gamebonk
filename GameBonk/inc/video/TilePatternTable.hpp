@@ -18,6 +18,7 @@ namespace GBonk
         public:
             TilePatternTable();
             void setAddr(const uint8_t* baseAddr, uint32_t taddr_offset);
+            std::vector<unsigned int> getPattern(int tileId, const Palette&, Sprite::SizeMode = Sprite::_8x8);
             Sprite getSprite(int tileId, const Palette&, Sprite::SizeMode = Sprite::_8x8);
             void invalidate();
             void setPalette();

@@ -16,8 +16,9 @@ namespace GBonk
         delete mbc_;
     }
 
-    void MMU::write(unsigned int value, uint32_t addr)
+    unsigned int MMU::write(unsigned int value, uint32_t addr)
     {
+        unsigned int old = 0;
         switch (addr & 0xF000)
         {
         // Writes to ROM area access MBC registers.
@@ -33,26 +34,29 @@ namespace GBonk
         // into account.
         case 0xA000:
         case 0xB000:
-            mbc_->write(value, addr);
-            return;
+            old = mbc_->write(value, addr);
+            break;
         case 0xC000:
         case 0xD000:
             // need to echo
+            old = systemMem_[addr];
             systemMem_[addr] = value;
             if (addr < 0xDDFF)
                 systemMem_[addr + 0x2000] = value;
-            return;
+            break;
         case 0x8000:
         case 0x9000:
-            addr = addr;
         default:
+            old = systemMem_[addr];
             systemMem_[addr] = value;
-            return;
+            break;
         };
+        return old;
     }
 
-    void MMU::writew(unsigned int value, uint32_t addr)
+    unsigned int MMU::writew(unsigned int value, uint32_t addr)
     {
+        unsigned int old = 0;
         switch (addr & 0xF000)
         {
             // Writes to ROM area access MBC registers.
@@ -68,11 +72,12 @@ namespace GBonk
             // into account.
         case 0xA000:
         case 0xB000:
-            mbc_->write(value, addr);
-            return;
+            old = mbc_->write(value, addr);
+            break;
         case 0xC000:
         case 0xD000:
             // need to echo
+            old = systemMem_[addr + 1] << 8 | systemMem_[addr];
             systemMem_[addr] = value & 0xFF;
             systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             if (addr < 0xDDFF)
@@ -80,15 +85,16 @@ namespace GBonk
                 systemMem_[addr] = value & 0xFF;
                 systemMem_[addr + 1] = (value & 0xFF00) >> 8;
             }
-            return;
+            break;
         case 0x8000:
         case 0x9000:
-            addr = addr;
         default:
+            old = systemMem_[addr + 1] << 8 | systemMem_[addr];
             systemMem_[addr] = value & 0xFF;
             systemMem_[addr + 1] = (value & 0xFF00) >> 8;
-            return;
+            break;
         }
+        return old;
     }
 
     unsigned int MMU::read(uint32_t addr)

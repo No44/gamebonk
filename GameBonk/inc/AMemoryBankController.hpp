@@ -50,8 +50,8 @@ namespace GBonk
 
         Type type() const { return type_; }
 
-        virtual void write(unsigned int val, uint32_t addr) = 0;
-        virtual void writew(unsigned int val, uint32_t addr) = 0;
+        virtual unsigned int write(unsigned int val, uint32_t addr) = 0;
+        virtual unsigned int writew(unsigned int val, uint32_t addr) = 0;
         virtual unsigned int read(uint32_t addr) const = 0;
         virtual unsigned int readw(uint32_t addr) const = 0;
 

@@ -35,23 +35,43 @@ namespace GBonk
             std::fill(built_.begin(), built_.end(), false);
         }
 
-        Sprite TilePatternTable::getSprite(int tileId, const Palette& p, Sprite::SizeMode spriteMode_)
+        std::vector<unsigned int> TilePatternTable::getPattern(int tileId, const Palette& p, Sprite::SizeMode mode)
         {
-            int tileidx = (firstSpriteIdx_ + tileId) & spriteModeMask_[spriteMode_];
+            std::vector<unsigned int> result;
+            int tileidx = (firstSpriteIdx_ + tileId) & spriteModeMask_[mode];
+
+            result.reserve(Sprite::ModeHeight[mode] * 8);
+            assert(tileidx <= 0xFF && tileidx >= 0);
+            if (built_[tileidx] == false)
+            {
+                buildSprite_(tileidx);
+                if (mode == Sprite::_8x16 && !built_[tileidx + 1])
+                    buildSprite_(tileidx + 1);
+            }
+            int pidx = tileidx * pixpertile_;
+
+            for (unsigned int i = 0, end = Sprite::ModeHeight[mode] * 8; i < end; ++i)
+                result.push_back(p[pixels_[pidx++]]);
+            return result;
+        }
+
+        Sprite TilePatternTable::getSprite(int tileId, const Palette& p, Sprite::SizeMode spriteMode)
+        {
+            int tileidx = (firstSpriteIdx_ + tileId) & spriteModeMask_[spriteMode];
 
             assert(tileidx <= 0xFF && tileidx >= 0);
             if (built_[tileidx] == false)
             {
                 buildSprite_(tileidx);
-                if (spriteMode_ == Sprite::_8x16 && !built_[tileidx + 1])
+                if (spriteMode == Sprite::_8x16 && !built_[tileidx + 1])
                     buildSprite_(tileidx + 1);
             }
             
             // Sprites are always 8 pixels wide
-            Sprite result(8, Sprite::ModeHeight[spriteMode_]);
+            Sprite result(8, Sprite::ModeHeight[spriteMode]);
             int pidx = tileidx * pixpertile_;
             
-            for (unsigned int y = 0; y < Sprite::ModeHeight[spriteMode_]; ++y)
+            for (unsigned int y = 0; y < Sprite::ModeHeight[spriteMode]; ++y)
             {
                 for (int x = 0; x < 8; ++x)
                 {

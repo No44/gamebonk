@@ -27,6 +27,7 @@ namespace GBonk
             void openWindow();
             void render();
             void draw(const Sprite&);
+            void setWindowTitle(const std::string& title);
 
             static bool Init();
             static void Shutdown();

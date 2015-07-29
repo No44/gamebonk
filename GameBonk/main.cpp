@@ -32,19 +32,22 @@ void start()
 {
     bool b = GBonk::Video::Driver::Init();
 
+#ifdef GBONK_DEBUG
     engine();
     GBonk::Video::Driver::Shutdown();
     return;
-
+#endif
 
 
     GBonk::CPU cpu;
     GBonk::Cartridge c;
+    GBonk::Video::Driver d;
 
     c.openFile("games/tetris.gb");
     c.displayInfo();
 
     cpu.load(c);
+    d.openWindow();
     cpu.run();
 
     c.close();

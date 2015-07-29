@@ -266,12 +266,25 @@ namespace GBonk
 
     void CPU::writew(unsigned int value, uint32_t addr)
     {
-        mmu_.writew(value, addr);
-        switch (addr & 0xFF00)
+        unsigned int old = mmu_.writew(value, addr);
+        switch (addr & 0xF000)
         {
-        case 0xFF00:
-            ioregWrite(value, addr & 0xFF);
-            ioregWrite(value, (addr & 0xFF) + 1);
+        case 0x8000:
+        case 0x9000:
+            video_.onVramWritew(value, addr);
+            break;
+        case 0xF000:
+            switch (addr & 0xFF00)
+            {
+            case 0xFF00:
+                ioregWrite(value, addr & 0xFF);
+                ioregWrite(value, (addr & 0xFF) + 1);
+                break;
+            case 0xFE00:
+                video_.onOAMWritew(value, old, addr);
+            default:
+                break;
+            }
             break;
         default:
             break;
@@ -280,15 +293,23 @@ namespace GBonk
 
     void CPU::write(unsigned int value, uint32_t addr)
     {
-        mmu_.write(value, addr);
+        unsigned int old = mmu_.write(value, addr);
         switch (addr & 0xF000)
         {
         case 0x8000:
         case 0x9000:
             video_.onVramWrite(value, addr);
+            break;
         case 0xF000:
-            if ((addr & 0xFF00) == 0xFF00)
+            switch (addr & 0xFF00)
+            {
+            case 0xFF00:
                 ioregWrite(value, addr & 0xFF);
+                break;
+            case 0xFE00:
+                video_.onOAMWrite(value, old, addr);
+                break;
+            }
             break;
         default:
             break;
@@ -326,6 +347,7 @@ namespace GBonk
     {
         static const std::chrono::milliseconds desired_frame_time{ 15 };
         static const ClockCall call(ClockCall(std::bind(&CPU::cbVBlank_, this)));
+        static const unsigned long long ticksSec = std::chrono::milliseconds(1000).count();
 
         interrupt(INT_VBLANK);
         sched_.schedule(ClockTask(call, VBLANK_PERIOD_CYCLES + VBLANK_INT_CYCLES));
@@ -339,7 +361,10 @@ namespace GBonk
         video_.render();
         std::this_thread::sleep_for(sleepDuration);
 
-        std::cerr << "FPS: " << std::chrono::milliseconds(1000).count() / frameTimeLength.count() << std::endl;
+
+        std::cerr << frameTimeLength.count() << std::endl;
+        std::cerr << "FPS: " << ticksSec / frameTimeLength.count() << std::endl;
+//        video_.driver_.setWindowTitle("GameBonk - FPS: " + std::to_string(ticksSec / frameTimeLength.count()));
 
         frameTime_ = std::chrono::steady_clock::now();
     }

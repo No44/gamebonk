@@ -30,8 +30,8 @@ namespace GBonk
         
         void setMBC(AMBC* mbc);
         void rawWrite(unsigned int value, uint32_t addr);
-        void write(unsigned int value, uint32_t addr);
-        void writew(unsigned int value, uint32_t addr);
+        unsigned int write(unsigned int value, uint32_t addr);
+        unsigned int writew(unsigned int value, uint32_t addr);
         unsigned int read(uint32_t addr);
         unsigned int readw(uint32_t addr);
 

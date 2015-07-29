@@ -1,8 +1,9 @@
 #ifndef GBONK_VIDEO_VIDEOSYSTEM_HPP
 #define GBONK_VIDEO_VIDEOSYSTEM_HPP
 
-#include <array>
 #include <cstdint>
+#include <map>
+#include <list>
 
 #include "video/Driver.hpp"
 #include "video/TilePatternTable.hpp"
@@ -34,7 +35,10 @@ namespace GBonk
             void drawLine(int line);
 
             void onVramWrite(unsigned int value, unsigned int addr);
-            
+            void onVramWritew(unsigned int value, unsigned int addr);
+            void onOAMWrite(unsigned int value, unsigned int previousValue, unsigned int addr);
+            void onOAMWritew(unsigned int value, unsigned int previousValue, unsigned int addr);
+
             enum PaletteId
             {
                 PAL_OBJ0 = 0,
@@ -44,9 +48,12 @@ namespace GBonk
             };
             void setPalette(PaletteId, const Palette&);
 
+            Driver driver_;
+
             static const unsigned int ScreenWidth = 160;
             static const unsigned int ScreenHeight = 144;
             static const unsigned int ScanLines = 153;
+            static const unsigned int SpriteCount = 40;
 
         private:
             void buildTileMap_(std::vector<unsigned int>& map, const TileTable& tileSource);
@@ -62,11 +69,6 @@ namespace GBonk
             uint8_t* baseMem_;
             uint8_t* vram_; // 0x8000
             ObjectAttribute* spriteAttrMem_; // 0xFE00
-
-            bool vramDirty_;
-            bool oamDirty_;
-
-            Driver driver_;
 
             union LCDC {
                 struct {
@@ -98,6 +100,9 @@ namespace GBonk
 
             TileTable        backgroundTable_;
             TileTable        windowTable_;
+
+            std::map<int, std::list<Sprite*>> spriteLines_;
+            std::vector<Sprite> sprites_;
 
             Palette palettes_[__PAL_COUNT];
 

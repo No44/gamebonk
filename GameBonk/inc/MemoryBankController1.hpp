@@ -15,8 +15,8 @@ namespace GBonk
         MemoryBankController1(const Cartridge&);
         MemoryBankController1(MemoryBankController1&&);
 
-        void write(unsigned int val, uint32_t addr) override;
-        void writew(unsigned int val, uint32_t addr) override;
+        unsigned int write(unsigned int val, uint32_t addr) override;
+        unsigned int writew(unsigned int val, uint32_t addr) override;
         unsigned int read(uint32_t addr) const override;
         unsigned int readw(uint32_t addr) const override;
 

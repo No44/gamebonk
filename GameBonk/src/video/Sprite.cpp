@@ -13,8 +13,8 @@ namespace GBonk
 
         Sprite::Sprite()
           : pixels_(),
-            w_(0),
-            h_(0)
+            w_(8),
+            h_(8)
         {
 
         }
@@ -53,6 +53,23 @@ namespace GBonk
             pixels_.clear();
         }
 
+        void Sprite::setPixels(const std::vector<uint32_t>& pixels)
+        {
+            pixels_ = pixels;
+        }
+
+        void Sprite::setPixels(std::vector<uint32_t>&& pixels)
+        {
+            pixels_ = pixels;
+        }
+
+        void Sprite::setPixels(const std::vector<uint32_t>& pixels, unsigned int nw, unsigned int nh)
+        {
+            pixels_ = pixels;
+            w_ = nw;
+            h_ = nh;
+        }
+
         Sprite& Sprite::operator=(Sprite&& s)
         {
           if (&s == this)
@@ -73,7 +90,7 @@ namespace GBonk
 
         void Sprite::flipx()
         {
-          for (unsigned int y = 0; y <= h_; ++y)
+          for (unsigned int y = 0; y < h_; ++y)
           {
             uint32_t* line = &pixels_[y * w_];
             for (int i = 0, j = w_ - 1; i < j; ++i, --j)

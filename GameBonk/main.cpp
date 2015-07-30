@@ -4,12 +4,12 @@
 #include "debug/DebuggerHost.hpp"
 #include "debug/Debugger.hpp"
 
-void engine()
+void engine(const char* game)
 {
     GBonk::CPU cpu;
     GBonk::Cartridge c;
 
-    c.openFile("games/tennis.gb");
+    c.openFile(game);
     c.displayInfo();
 
     cpu.load(c);
@@ -28,9 +28,10 @@ void engine()
     c.close();
 }
 
-void start()
+void start(const char* game = nullptr)
 {
     bool b = GBonk::Video::Driver::Init();
+    const char* cartridge = game ? game : "games/tetris.gb";
 
 #ifdef GBONK_DEBUG
     engine();
@@ -43,7 +44,7 @@ void start()
     GBonk::Cartridge c;
     GBonk::Video::Driver d;
 
-    c.openFile("games/tetris.gb");
+    c.openFile(cartridge);
     c.displayInfo();
 
     cpu.load(c);
@@ -67,8 +68,8 @@ int WinMain(HINSTANCE, HINSTANCE, LPSTR, int)
 
 #endif
 
-int main(int, char**)
+int main(int, char** av)
 {
-    start();
+    start(av[1]);
     return EXIT_SUCCESS;
 }

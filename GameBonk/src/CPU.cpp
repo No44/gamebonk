@@ -115,13 +115,13 @@ namespace GBonk
 
     void CPU::onKeyUp(GBKeys k)
     {
-        keys_[unsigned int(k)] = false;
+        keys_[(unsigned int)k] = false;
         interrupt(INT_P10);
     }
 
     void CPU::onKeyDown(GBKeys k)
     {
-        keys_[unsigned int(k)] = true;
+        keys_[(unsigned int)k] = true;
         interrupt(INT_P10);
     }
 

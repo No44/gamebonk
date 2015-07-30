@@ -57,7 +57,7 @@ namespace GBonk
             r[SDLK_LEFT] = GBKeys::LEFT;
             r[SDLK_RIGHT] = GBKeys::RIGHT;
             r[SDLK_a] = GBKeys::A;
-            r[SDLK_z] = GBKeys::B;
+            r[SDLK_b] = GBKeys::B;
             r[SDLK_s] = GBKeys::SELECT;
             r[SDLK_SPACE] = GBKeys::START;
             

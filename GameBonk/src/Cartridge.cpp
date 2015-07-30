@@ -136,6 +136,7 @@ namespace GBonk
         //romSize_ = ROM_sizes[content_[0x148]];
         romSize_ = (32 * (1 << 10)) << content_[0x148];
         ramSize_ = RAM_sizes[content_[0x149]];
+        language_ = static_cast<Language>(content_[0x14A]);
         manufacturer_ = static_cast<Manufacturer>(content_[0x151] << 8 | content_[0x150]);
         version_ = content_[0x14C];
 

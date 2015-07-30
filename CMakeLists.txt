@@ -7,6 +7,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 include_directories(GameBonk/inc/)
 
 add_executable(gamebonk
+  ./GameBonk/inc/utility.hpp
   ./GameBonk/inc/MemoryBankController1.hpp
   ./GameBonk/inc/video/Driver.hpp
   ./GameBonk/inc/video/TilePatternTable.hpp

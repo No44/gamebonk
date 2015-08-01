@@ -34,7 +34,7 @@ void start(const char* game = nullptr)
     const char* cartridge = game ? game : "games/tetris.gb";
 
 #ifdef GBONK_DEBUG
-    engine();
+    engine(cartridge);
     GBonk::Video::Driver::Shutdown();
     return;
 #endif

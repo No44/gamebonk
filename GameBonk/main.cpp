@@ -31,7 +31,7 @@ void engine(const char* game)
 void start(const char* game = nullptr)
 {
     bool b = GBonk::Video::Driver::Init();
-    const char* cartridge = game ? game : "games/tetris.gb";
+    const char* cartridge = game ? game : "games/tennis.gb";
 
 #ifdef GBONK_DEBUG
     engine(cartridge);

@@ -16,10 +16,15 @@ namespace GBonk
         class TilePatternTable
         {
         public:
+            static const unsigned int SIZE;
+
             TilePatternTable();
             void setAddr(const uint8_t* baseAddr, uint32_t taddr_offset);
+            void dirtify(const uint8_t* addr);
+
             std::vector<unsigned int> getPattern(int tileId, const Palette&, Sprite::SizeMode = Sprite::_8x8);
             Sprite getSprite(int tileId, const Palette&, Sprite::SizeMode = Sprite::_8x8);
+            bool isDirty(int patternID, Sprite::SizeMode = Sprite::_8x8) const;
             void invalidate();
             void setPalette();
 

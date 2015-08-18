@@ -82,6 +82,13 @@ namespace GBonk
             return result;
         }
 
+        bool TilePatternTable::isDirty(int pID, Sprite::SizeMode s) const
+        {
+            int tileidx = (firstSpriteIdx_ + pID) & spriteModeMask_[s];
+
+            return built_[pID] && (s == Sprite::_8x8 || built_[tileidx + 1]);
+        }
+
         void TilePatternTable::buildSprite_(int idx)
         {
             const uint8_t* patternStart = addr_ + (tileSize_ * idx);
